@@ -4,8 +4,8 @@
 
 The repository exposes the architecture, losses, training protocol, evaluation
 metrics, and audit procedures. Exact manuscript numbers additionally require
-the authorized simulator-generated data and are therefore outside the public
-release boundary.
+the authorized simulator-generated data and are therefore outside the available
+data boundary.
 
 Reproducibility has three distinct levels in this project:
 
@@ -141,25 +141,25 @@ Examples assume an editable installation (`python -m pip install -e .`).
 ```bash
 mecasnet-thresholds \
   --data-root /path/to/data \
-  --checkpoint /path/to/legacy-y8-checkpoint.pt \
+  --checkpoint /path/to/compat-checkpoint.pt \
   --output-dir runs/thresholds --device cuda
 
 python scripts/experiments/main/section_4_11_uncertainty/predictive_uncertainty.py \
   --data-root /path/to/data \
-  --checkpoints /path/to/legacy-y8-seed0.pt /path/to/legacy-y8-seed1.pt \
-                /path/to/legacy-y8-seed2.pt \
+  --checkpoints /path/to/compat-seed0.pt /path/to/compat-seed1.pt \
+                /path/to/compat-seed2.pt \
   --output-dir runs/uncertainty --n-val 500 --n-test 500 --alpha 0.10
 
 python scripts/experiments/main/section_4_05_propagation_depth/propagation_depth.py \
-  --data-root /path/to/data --checkpoint /path/to/legacy-y8-seed0.pt \
+  --data-root /path/to/data --checkpoint /path/to/compat-seed0.pt \
   --output runs/propagation-depth.json --threshold 0.05
 ```
 
-The evaluation utilities named `Y8` load the archived `legacy-y8` profile for
-checkpoint compatibility. Use `--profile paper` for all new training runs.
+The supplied post-training utilities load the `compat` profile. Use
+`--profile paper` for new training runs.
 
-Before applying an archived analysis script to a new checkpoint, read its model
-builder. Many scripts intentionally require `legacy-y8` and strict state loading.
+Before applying an analysis script to another checkpoint, verify its model
+builder. Compatibility-profile scripts use strict state loading.
 See [evaluation_protocol.md](evaluation_protocol.md) for a script-by-script
 scope explanation.
 
@@ -176,7 +176,7 @@ After a five-seed run, verify:
 7. no test value appears in the epoch-selection history;
 8. the output directory contains no raw event or protected graph data.
 
-Archive the console log as well as the JSON. The log records effective profile,
+Retain the console log with the JSON. The log records the effective profile,
 device fallback, model variant, event counts, parameter count, and saved paths.
 
 ## Result record
@@ -239,8 +239,7 @@ and default runs in one aggregate.
 Two profiles are intentionally distinct:
 
 - `paper`: final information boundary, `c=6`, learned `q_v`;
-- `legacy-y8`: archived pre-final checkpoint compatibility, `c=2`, no learned
-  `q_v`.
+- `compat`: fixed analysis-checkpoint configuration, `c=2`, no learned `q_v`.
 
 A successful `strict=False` load does not prove scientific compatibility.
 Record the profile explicitly and use strict loading for frozen evaluations.
@@ -269,7 +268,7 @@ Additional boundaries:
 
 ## Publication checklist
 
-Before releasing a table, figure, or checkpoint:
+Before reporting a table, figure, or checkpoint:
 
 - [ ] code commit and worktree state recorded;
 - [ ] data/split hashes recorded;
@@ -280,5 +279,5 @@ Before releasing a table, figure, or checkpoint:
 - [ ] undefined strata retained as `NaN`, not silently removed;
 - [ ] timing scope and hardware disclosed;
 - [ ] public/private asset boundary reviewed;
-- [ ] checkpoint release approved for privacy and memorization risk;
-- [ ] final DOI and citation metadata updated after publication.
+- [ ] checkpoint distribution permitted after privacy and memorization review;
+- [ ] citation metadata verified.

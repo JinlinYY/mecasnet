@@ -1,4 +1,4 @@
-"""Loss functions for PI-DeepLeontief.
+"""Loss functions for MeCaSNet.
 
 Total loss = L_data (focal-weighted) + L_mono + L_mass [+ L_phys, L_risk]
 
@@ -26,11 +26,9 @@ def focal_weights(shock_mask: torch.Tensor, peak_target: torch.Tensor,
     With a floor for directly-shocked nodes so they cannot drop below
     0.5 * shock_w even if their peak happens to be small.
 
-    Motivation: peak_loss_node is *heavy-tailed* (75% nodes ≈ 0).  The previous
-    binary mask only up-weighted directly-hit nodes (the easy case), starving
-    the *cascade-affected* nodes — which are what the Inoue–Todo paper actually
-    studies.  Continuous weighting gives every node a learning signal
-    proportional to how much it really moved.
+    Peak-loss targets are heavy-tailed, with many near-zero nodes. Continuous
+    weighting gives each node a learning signal proportional to target severity
+    while retaining a floor for directly shocked nodes.
     """
     Nr = shock_mask.shape[0]
     inert_w = cfg.focal_inert_weight
@@ -98,8 +96,8 @@ def loss_trough_day(trough_day_logit: torch.Tensor,
     """Cross-entropy on per-node trough_day (which keyframe is u-trough).
 
     Active only on cascade nodes (peak > trough_day_peak_thresh, not shocked).
-    Forces encoder to learn "when does this node bottom out" → directly attacks
-    the d30/d50 per-node identifiability failure surfaced in diagnostics.
+    This auxiliary objective teaches the encoder when each node reaches its
+    trough, improving temporal identifiability around d30/d50.
     """
     w = float(getattr(cfg, "w_trough_day", 0.0))
     if w == 0.0:
@@ -274,12 +272,12 @@ def total_loss(out: Dict, batch: Dict, cfg: Config) -> Dict[str, torch.Tensor]:
             batch["shock_mask"], batch["peak_loss"],
             batch.get("key_days"), cfg)
     raw_total = sum(parts.values())
-    # ---- Tier 1.1: per-domain loss multiplier (event-level) ----
+    # ---- per-domain loss multiplier (event level) ----
     dlw = getattr(cfg, "domain_loss_weights", {}) or {}
     mult = float(dlw.get(domain, 1.0)) if domain is not None else 1.0
     parts["total"] = mult * raw_total
 
-    # ---- Diagnostic outputs: Tier 2 parameter monitoring ----
+    # ---- learned-parameter monitoring outputs ----
     if "tau_u_learned" in out and "c_learned" in out:
         tau_u = out["tau_u_learned"]
         c = out["c_learned"]

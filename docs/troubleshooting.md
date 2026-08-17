@@ -23,7 +23,7 @@ python -c "import mecasnet; print(mecasnet.__version__)"
 ```
 
 Do not solve this by copying source files into the working directory or by
-adding old internal directories to `PYTHONPATH`.
+adding unrelated source directories to `PYTHONPATH`.
 
 ### PyTorch or CUDA cannot be imported
 
@@ -178,7 +178,7 @@ expected. Record the environment and report the registered multi-seed aggregate.
 First check the profile:
 
 - new manuscript runs: `paper`;
-- archived Y8-H analysis: `legacy-y8`.
+- compatibility-profile analysis: `compat`.
 
 Then check the model variant, sector feature width, hidden width, propagation
 block count, and whether the file is a raw state dictionary or a checkpoint
@@ -187,11 +187,11 @@ payload containing `state_dict`.
 For frozen evaluation, keep `strict=True`. Using `strict=False` can create a
 partially random model while appearing to load successfully.
 
-### `--require-y8-exact` fails
+### `--require-compat-exact` fails
 
-This option is only for `--profile legacy-y8 --variant MeCaSNet`. It verifies
-the archived architecture and parameter count. It is expected to reject the
-final `paper` profile.
+This option is only for `--profile compat --variant MeCaSNet`. It verifies the
+fixed compatibility architecture and parameter count. It rejects the `paper`
+profile by design.
 
 ### Resume does not continue the same optimization trajectory
 
@@ -214,9 +214,9 @@ mean.
 
 ### A post-training script rejects a new paper checkpoint
 
-Many reviewer-analysis scripts intentionally reconstruct `legacy-y8`. They are
-audit records for archived checkpoints. Use the training summary for new paper
-runs or adapt the script's builder explicitly and document the change.
+Several post-training scripts construct the `compat` profile. Use the training
+summary for `paper` runs or update the script's builder explicitly and document
+the selected profile.
 
 ### A topology script rejects `n_sec` or `Fv`
 
@@ -228,8 +228,8 @@ before adapting them to another graph.
 
 The repair and runtime scripts are under `scripts/experiments/main/` in their
 article-aligned section folders. The ARIO/Henriet, Inoue-Todo, and FINDER
-backends are not part of the public release. These scripts require an authorized
-private backend on `PYTHONPATH` and the corresponding assets.
+backends are external dependencies. These scripts require an authorized backend
+on `PYTHONPATH` and the corresponding assets.
 
 ## Getting a useful bug report
 

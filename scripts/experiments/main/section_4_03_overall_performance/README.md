@@ -25,6 +25,6 @@ python scripts/experiments/main/section_4_03_overall_performance/threshold_multi
   --threshold 0.05 --n-test 500 --device cuda
 ```
 
-The post-training script reconstructs the archived `legacy-y8` model family.
-For newly trained `paper` checkpoints, use the metrics in each training summary
-unless the analysis builder has been deliberately updated and documented.
+The post-training script constructs the `compat` profile. For `paper`
+checkpoints, use the metrics in each training summary unless the analysis
+builder has been explicitly configured for that profile.

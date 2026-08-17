@@ -8,7 +8,7 @@ single interval claim.
 ```bash
 python scripts/experiments/main/section_4_11_uncertainty/input_uncertainty.py \
   --data-root /path/to/authorized/data \
-  --checkpoint /path/to/legacy-y8-seed0.pt \
+  --checkpoint /path/to/compat-seed0.pt \
   --output-dir runs/main/section_4_11/input \
   --n-test 500 --replicates 10 --bootstrap 2000 --device cuda
 ```

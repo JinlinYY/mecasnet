@@ -44,8 +44,8 @@ file before running the code.
 | [method_to_code.md](method_to_code.md) | Section-level mapping from the manuscript and SI to implementation symbols |
 | [troubleshooting.md](troubleshooting.md) | Common environment, data, checkpoint, CUDA, and metric problems |
 
-The public-release boundary and data-governance rules are documented separately
-in [`OPEN_SOURCE_SCOPE.md`](../OPEN_SOURCE_SCOPE.md).
+Data, simulator, and software availability are documented separately in
+[`DATA_AND_SOFTWARE_AVAILABILITY.md`](../DATA_AND_SOFTWARE_AVAILABILITY.md).
 
 ## Shared notation
 

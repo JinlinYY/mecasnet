@@ -346,7 +346,7 @@ class CascadeEventDataset(Dataset):
         edge_src = torch.as_tensor(coo.col, dtype=torch.long)         # supplier
         edge_a = torch.as_tensor(coo.data, dtype=torch.float32)       # a_{v,r}
 
-        # ----- train-time edge dropout (Phase 2 cross-domain aug) -----
+        # ----- train-time edge dropout for cross-domain augmentation -----
         # Random drop a fraction p of edges; preserves shocked-node connectivity
         # by exempting edges whose endpoints are both shocked.
         edge_drop_p = float(getattr(self.cfg, "edge_dropout_p", 0.0))
@@ -370,7 +370,7 @@ class CascadeEventDataset(Dataset):
         edge_outshare = (edge_a * sub_P_ini_t[edge_dst]
                          / sub_P_ini_t[edge_src].clamp_min(1e-6))
 
-        # ----- train-time node feature dropout (Phase 2) -----
+        # ----- train-time node-feature dropout -----
         feat_drop_p = float(getattr(self.cfg, "node_feat_dropout_p", 0.0))
         if self.train_mode and feat_drop_p > 0.0:
             non_shock = (sub_shock < 0.5)

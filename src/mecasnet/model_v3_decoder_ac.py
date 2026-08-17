@@ -1,30 +1,8 @@
-"""Experimental MeCaSNet decoder variants targeting the R^2_kf transition-frame
-weakness exposed by the DirGNN baseline (DirGNN beats MeCaSNet on R2_kf_csc,
-driven almost entirely by keyframes d10 and d70 — the early-decline slope and
-the early->late Gaussian seam, where the closed-form bimodal trajectory is
-structurally rigid).
+"""Alternative MeCaSNet decoders and directed graph backbones.
 
-Two variants, both reusing the trained-flagship recipe (g3_narrow param2 +
-3-layer prewarm + residual idea) so the only thing that changes is HOW the
-transition frames are corrected:
-
-  A. KSGATv3ResidualA  — same late-residual head as the flagship V3DE_G3_RES,
-     but (1) the fixed alpha(d) gate opens earlier at d10 (0.05 -> 0.40) so the
-     residual can fix the early-decline slope, and (2) the residual head is
-     widened (d -> 2d -> K) so it has the capacity to learn per-node offsets in
-     the transition band. Everything else identical to V3DE_G3_RES.
-
-  C. KSGATv3BlendC     — physics-prior bimodal decoder run in PARALLEL with a
-     free GRU rollout, fused per-keyframe by a learnable gate alpha_k:
-         u_k = sigmoid(alpha_k) * u_rollout_k + (1 - .) * u_param_k
-     This is the existing `blend_rollout` path in KSGATv3 (param2_blend), simply
-     surfaced as a named variant. The physics prior owns the peak frames; the
-     free rollout owns the transition frames; the gate learns which per frame.
-     Directly turns the DirGNN finding into an architecture: keep MeCaSNet's
-     peak accuracy, borrow DirGNN's trajectory flexibility.
-
-Both keep the exact forward I/O contract (drop into train_v3de / _runner /
-losses). Param budgets stay ~230k (csmar) so comparison vs flagship is fair.
+The module provides residual, rollout-fusion, symmetric-reverse, trimodal, and
+persistent edge-state variants. All variants preserve the ``KSGATv3`` forward
+contract and can be selected through the training interface.
 """
 from __future__ import annotations
 from typing import Dict
@@ -38,13 +16,7 @@ from .model_v3 import KSGATv3
 # Variant A — earlier-gated, wider residual head
 # ===========================================================================
 class KSGATv3ResidualA(KSGATv3):
-    """V3DE_G3_RES with an earlier-opening alpha(d) gate + wider residual head.
-
-    Motivation: the flagship gate is alpha(d10)=0.05 (residual barely active at
-    d10) and alpha(d70)=0.97 (active, but the shared d->d->K head lacks capacity
-    for the seam). DirGNN beats us by +0.60 at d10 and +0.55 at d70. We open d10
-    to 0.40 and widen the head to d->2d->K.
-    """
+    """Residual variant with an earlier gate and a wider ``d -> 2d -> K`` head."""
 
     def __init__(self, cfg, Fv: int, **kwargs):
         super().__init__(cfg, Fv=Fv, **kwargs)
@@ -52,7 +24,7 @@ class KSGATv3ResidualA(KSGATv3):
         K = len(cfg.key_days)
         assert K == 10, f"alpha_kf_residual hard-coded for K=10, got {K}"
 
-        # WIDER residual head: d -> 2d -> K (flagship was d -> d -> K)
+        # Wider residual head: d -> 2d -> K.
         self.late_residual_head = nn.Sequential(
             nn.Linear(d, 2 * d), nn.GELU(),
             nn.Linear(2 * d, K),
@@ -60,8 +32,7 @@ class KSGATv3ResidualA(KSGATv3):
         nn.init.zeros_(self.late_residual_head[-1].weight)
         nn.init.zeros_(self.late_residual_head[-1].bias)
 
-        # EARLIER-opening gate: d10 0.05 -> 0.40 (was [.,.,0.05,0.5,...]).
-        # Keep d0,d5 = 0 to preserve the early-peak win (identity there).
+        # Keep d0 and d5 at identity; open the residual path from d10 onward.
         self.register_buffer(
             "alpha_kf_residual",
             torch.tensor([0.0, 0.0, 0.40, 0.65, 0.90, 0.95, 0.97, 0.98, 0.99, 0.99]),
@@ -112,24 +83,8 @@ class KSGATv3BlendC(KSGATv3):
 # Variant D — symmetric (DirGNN-style) reverse aggregation in the backbone
 # ===========================================================================
 #
-# Root-cause finding: DirGNN beats MeCaSNet at the transition frames (d10, d70)
-# NOT because of its free per-keyframe head (PlainGAT/PlainGCN have the same head
-# and do NOT win), but because it is the only baseline with a STRONG reverse
-# (consumer->supplier) message pass: separate W_out, degree-normalised, edge-
-# weight-aware. The transition-frame timing depends on the round-trip propagation
-# of the demand-feedback wave, which needs both directions.
-#
-# MeCaSNet's DirectedGATBlock nominally has a reverse path, but it is crippled:
-#   - reverse message ignores the edge weight a (no Leontief share on feedback)
-#   - reverse aggregation is an UNNORMALISED sum (high-degree blow-up)
-#   - reverse message is a thin 1-layer MLP seeing only [h_dst, u_dst]
-#
-# Variant D fixes ONLY the reverse path to mirror DirGNN (edge-weight aware,
-# degree-normalised, 2-layer MLP). The forward attention path is byte-for-byte
-# identical, so peak / early-frame behaviour is preserved. The bimodal closed-
-# form physics decoder is UNTOUCHED — full physics interpretability retained;
-# we only feed it better-informed latents. This is the most physics-preserving
-# way to borrow DirGNN's transition-frame strength.
+# The symmetric block keeps supplier-to-consumer attention and adds an
+# edge-weight-aware, degree-normalized consumer-to-supplier message path.
 
 from .model import scatter_logsumexp
 from .model_v3 import DirectedGATBlock
@@ -208,12 +163,10 @@ def _swap_directed_blocks(module: nn.Module, d: int) -> int:
 
 
 class KSGATv3SymRev(KSGATv3Residual):
-    """Flagship (V3DE_G3_RES, bimodal + residual head) with every backbone
-    DirectedGATBlock swapped for SymmetricDirectedGATBlock.
+    """Residual decoder with symmetric directed message-passing blocks.
 
-    Identical to the flagship in every other respect (param2 g3_narrow decoder,
-    3-layer prewarm, late-residual head + fixed alpha gate). Only the reverse
-    message-passing capacity changes. Physics decoder untouched.
+    The param2 decoder, three-layer prewarm, late-residual head, and fixed alpha
+    gate are retained; only reverse message-passing capacity changes.
     """
 
     def __init__(self, cfg, Fv: int, **kwargs):
@@ -228,26 +181,12 @@ class KSGATv3SymRev(KSGATv3Residual):
 # Variant BD — D's symmetric-reverse backbone + B's trimodal decoder
 # ===========================================================================
 #
-# Theory of synergy (NOT a simple sum):
-#   D supplies the round-trip demand-feedback signal in the latent h
-#     ("WHEN/WHERE a second shock hits") — the mechanism DirGNN wins on.
-#   B supplies the closed-form 3rd Gaussian shape ("express that second
-#     trough at d100+") that the bimodal decoder structurally cannot.
-#   Single-handed, each is half-crippled: D knows there is a late trough but
-#   the bimodal decoder has no shape for it; B has the shape but, with a
-#   feedback-blind backbone, no signal to place it. Together they close the
-#   loop — and P3 (3rd-Gaussian amplitude) grows ONLY when D's reverse signal
-#   indicates a genuine late trough (Inoue), staying ~0 for monotone domains
-#   (Henriet), so the late Gaussian is self-gating and domain-safe.
-#
-# Implementation: KSGATv3SymRev already forwards decoder_mode via **kwargs to
-# KSGATv3, and KSGATv3Residual.forward recomputes peak for param3. So the
-# fusion needs NO new wiring — just pass decoder_mode="param3". This subclass
-# only fixes that default and gives the fusion an explicit name for the server.
+# This variant combines the symmetric reverse path with the trimodal analytical
+# decoder. The third component represents late troughs while the reverse path
+# supplies demand-feedback information to the parameter-generating latent.
 
 class KSGATv3SymRevTri(KSGATv3SymRev):
-    """B+D fusion: symmetric (DirGNN-style) reverse backbone + trimodal
-    (param3) closed-form decoder + the flagship late-residual head.
+    """Symmetric-reverse backbone with a trimodal closed-form decoder.
 
     Fully physics-interpretable: the trajectory is still a closed-form
     min of three Gaussians; only the latent that drives their parameters is
@@ -263,43 +202,21 @@ class KSGATv3SymRevTri(KSGATv3SymRev):
 # Variant E — edge-state-style edge-state backbone (KSGATv3EdgeState)
 # ===========================================================================
 #
-# Diagnosis (2026-06-11): edge-state baseline reached val kf̄=0.75 / R²pk_csc=0.89
-# at ep32 on Henriet, ~0.10 above our flagship+BD+KFW (0.64). Reading the
-# edge-state code (model_baselines_strong.py:209-271) vs ours shows the gap is
-# NOT in the decoder but in the BACKBONE:
+# Persistent edge-state backbone
+# Persistent edge states provide explicit relation memory across layers:
 #
-#   our DirectedGATBlock        : edge has NO hidden state. Each layer recomputes
-#                                  m_e = MLP([h_src, h_dst, u_src, log a]) from
-#                                  current h. Edge "memory" of the cascade is
-#                                  only encoded implicitly in node h.
-#   edge-state processor               : edge has d-dim hidden state e_ij that
-#                                  PERSISTS across layers, updated as
-#                                    e <- LN(e + MLP([e, h_src, h_dst]))
-#                                  and the SAME e drives both forward (in)
-#                                  and reverse (out) aggregation. After 6
-#                                  layers e accumulates 12-hop bidirectional
-#                                  message history.
-#   our reverse                 : 1-layer MLP on (h_dst, u_dst), index_add sum
-#   edge-state reverse                 : same e as forward, sum aggregation - fully
-#                                  symmetric strength
+#   e <- LN(e + MLP([e, h_src, h_dst, log_a]))
+# The same edge representation drives forward attention and reverse aggregation.
 #
-# This block (`EdgeStateGATBlock`) brings edge-state's edge state into our prewarm
-# WITHOUT touching the physics decoder, residual head, MoE router, KSGATStep
-# inv-state oscillator, or the u₀ = 1 - δ₀·shock physics hard-code. We KEEP
+# EdgeStateGATBlock adds the persistent state to the prewarm chain without
+# changing the physics decoder, residual head, router, recurrent state, or
+# deterministic Day-0 boundary. It retains
 # our forward attention (Leontief essential-supplier weighting — physics) as
 # an extra weighting on top of edge messages, because in supply chains the
 # consumer should attend more to large-share suppliers (a_ij > τ).
 #
-# Implementation trick: edge state e must persist ACROSS the prewarm layers.
-# We avoid re-overriding the parent forward (250 lines) by giving each block
-# a shared mutable `EdgeStateCache` that is reset at the start of every model
-# forward(). The block list signature stays (h, u, src, dst, edge_a, Nr) →
-# (msg_in, msg_out) so the parent's prewarm loop is untouched.
-#
-# Param budget (d=64, n_proc=4): + ~100K vs flagship 280K BD = 380K total.
-#   per block: edge_update (3d→d→d) ~25K + node_update (3d→d→d) ~25K +
-#   LayerNorms ~256 = ~50K. n_proc=4 → +200K-ish minus the 30K saved by
-#   replacing the 3 DirectedGATBlocks → net ~+170K.
+# A shared EdgeStateCache persists e across the prewarm layers and is reset at
+# the start of each forward pass. The block I/O contract is unchanged.
 
 class EdgeStateCache:
     """Mutable cache shared across all EdgeStateGATBlocks in a single forward.
@@ -392,25 +309,24 @@ class EdgeStateGATBlock(nn.Module):
 
 
 class KSGATv3EdgeState(KSGATv3SymRevTri):
-    """B+D+edge-state fusion variant.
+    """Trimodal decoder with a persistent edge-state prewarm backbone.
 
     Stacks the edge-state-style edge-state backbone on top of the BD recipe:
-      backbone : 4-layer EdgeStateGATBlock chain with persistent edge state
+      backbone : EdgeStateGATBlock chain with persistent edge state
                   (replaces the 3-layer DirectedGATBlock prewarm)
       KSGATStep: keeps SymmetricDirectedGATBlock (D's strong reverse) for
                   intra-rollout spatial passes and the inv-state oscillator
-      decoder  : trimodal param3 (B's late Gaussian) — UNTOUCHED
-      head     : late-residual head + α gate — UNTOUCHED
-      u₀       : 1 - δ₀·shock physics hard-code — UNTOUCHED
+      decoder  : trimodal param3 analytical trajectory
+      head     : late-residual head with fixed alpha gate
+      u₀       : deterministic 1 - delta0 * shock boundary
 
     The edge-state backbone provides the latent richness edge-state uses to learn
     non-typical trajectories (mid-cascade rebounds, late demand spikes), but
     the closed-form trimodal decoder still consumes that latent and emits
     physics-readable (μ, σ, A) triples per node — interpretability preserved.
 
-    Param budget vs flagship 280K BD: ~+170K (4 prewarm blocks @ ~50K each
-    minus 3 saved DirectedGATBlock @ ~10K each); total ≈ 420K. Cut
-    `n_edge_blocks` to 3 if a tighter budget is needed.
+    ``n_edge_blocks`` controls the depth and parameter budget of the prewarm
+    chain.
     """
 
     def __init__(self, cfg, Fv: int, n_edge_blocks: int = 4, **kwargs):

@@ -1,8 +1,7 @@
-"""Legacy recurrent rollout and graph-free/graph-based comparators.
+"""Recurrent rollout and graph-free/graph-based comparators.
 
-These implementations are retained for matched-protocol baselines and archived
-checkpoint compatibility. New MeCaSNet models should be constructed through
-the public package factory.
+These implementations support matched-protocol baselines and compatible
+checkpoints. Construct MeCaSNet models through the public package factory.
 """
 from __future__ import annotations
 import math
@@ -186,26 +185,22 @@ class GRCSRollout(nn.Module):
 # Decoder v2 — minimal: only reach classifier (peak is closed-form on neural u)
 # ---------------------------------------------------------------------------
 class DecoderV2(nn.Module):
-    """Decoder with three peak modes (path β rescue: 2026-05-21).
+    """Decoder with three selectable peak-readout modes.
 
-        peak_mode="traj"   : peak = 1 - min_t u_t                    (original v2)
-                             pure rollout — peak gradient must travel through
-                             40 GRU steps; verified to fail in 5-epoch short
-                             training (R²pk=−2.27 in ablate_v2 run).
+        peak_mode="traj"   : peak = 1 - min_t u_t; the peak gradient travels
+                             through the complete recurrent rollout.
 
         peak_mode="direct" : peak = sigmoid(MLP(h_final, traj_summary))
                              rollout still runs to produce u_keyframes (kf
                              loss supervises it), but peak takes a 1-hop
-                             gradient path. Cleanest test of "are 40-step
-                             recurrent features richer than single-pass GAT?"
+                             gradient path.
 
         peak_mode="blend"  : peak = λ·peak_traj + (1−λ)·peak_direct
                              learnable scalar λ ∈ (0,1), init at 0.1 (favor
                              direct early; let the model up-weight traj if
                              rollout proves useful). DEFAULT.
 
-    Note: this is NOT v1's rejected "phys + neural" blend. Both branches are
-    fully neural. The blend only chooses between two neural readout paths.
+    Both branches are neural; the blend combines two readout paths.
     """
 
     TRAJ_DIM = 6

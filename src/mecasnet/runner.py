@@ -196,7 +196,7 @@ def train_with_val(cfg, net, train_ids, val_ids, device,
     """Train n_epochs, eval on val every `eval_every` epochs, track best.
 
     Optional LR schedule (per-epoch):
-      lr_schedule='const'   : keep cfg.lr (default, legacy behaviour).
+      lr_schedule='const'   : keep cfg.lr fixed.
       lr_schedule='cosine'  : linear warmup for `warmup_epochs` from 0 -> cfg.lr,
                               then cosine decay from cfg.lr -> cfg.lr*min_lr_ratio
                               over the remaining epochs.

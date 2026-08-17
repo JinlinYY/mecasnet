@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader
 from mecasnet.config import Config
 from mecasnet.data import CascadeEventDataset, StaticNetwork, collate_single, split_event_ids
 
-from mecasnet.evaluation import load_y8, r2, to_device
+from mecasnet.evaluation import load_compat, r2, to_device
 
 
 CASCADE_THRESHOLD = 0.05
@@ -176,7 +176,7 @@ def main() -> None:
     net = StaticNetwork(cfg)
     progress("Preflighting all checkpoints with strict state-dict loading on CPU.")
     for checkpoint in checkpoint_paths:
-        preflight_model = load_y8(checkpoint, cfg, net.Fv, torch.device("cpu"))
+        preflight_model = load_compat(checkpoint, cfg, net.Fv, torch.device("cpu"))
         del preflight_model
     progress("All five checkpoints are architecture-compatible.")
     events_dir = Path(args.data_root) / cfg.events_dir
@@ -201,7 +201,7 @@ def main() -> None:
     test_predictions: list[np.ndarray] = []
     for seed, checkpoint in enumerate(checkpoint_paths):
         progress(f"Loading seed {seed} checkpoint: {checkpoint}")
-        model = load_y8(checkpoint, cfg, net.Fv, device)
+        model = load_compat(checkpoint, cfg, net.Fv, device)
         validation_predictions.append(predict(
             model, validation_batches, device, f"seed{seed} validation"))
         test_predictions.append(predict(model, test_batches, device, f"seed{seed} test"))
@@ -304,7 +304,7 @@ def main() -> None:
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "y8_predictive_uncertainty.json"
+    output_path = output_dir / "predictive_uncertainty.json"
     output_path.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     progress(f"Saved: {output_path}")
 

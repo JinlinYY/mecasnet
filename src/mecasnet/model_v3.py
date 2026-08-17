@@ -1,27 +1,9 @@
-"""PI-DeepLeontief v3: Keyframe-Aligned Spatiotemporal GAT (KS-GAT).
+"""Keyframe-aligned spatiotemporal graph-attention model.
 
-Design rationale (response to ablate_v2 results, 2026-05-21)
------------------------------------------------------------
-v2 (40-step BPTT rollout) failed because:
-  1. 40 GRU steps × 5 epoch → BPTT can't converge in time
-  2. Δu per-step bound = 0.10 → can't reach observed troughs (peak ~ 0.5+)
-  3. δ_t signal ignored (variant A=B exactly, bit-for-bit)
-  4. Only the FINAL peak is supervised — 39 intermediate steps have no signal
-  5. uniform stride=5d ignores the data's actual sampling cadence
-
-But the data IS temporal: u_keyframes ∈ R^{10×V}, sampled at
-  key_days = [0, 5, 10, 20, 30, 50, 70, 100, 150, 199]
-and per-keyframe "frac u<0.95" climbs 4.8% (day 0) → 36% (day 50-70) → 14%
-(day 199). Cascade propagation IS the signal.
-
-v3 fixes all 5 failures:
-  - K=10 internal steps, ALIGNED to key_days (not uniform stride)
-  - EVERY step is supervised by u_keyframes[k]  ← the critical change
-  - BPTT depth = 9, not 40
-  - u_{k+1} = sigmoid(MLP(h_{k+1})), DIRECT prediction (no Δu accumulation)
-  - Δt_k = key_days[k+1] - key_days[k] fed into GRU as scalar input
-  - Spatial: directed edge-aware GAT (same as v2 baseline E)
-  - Temporal: GRU with Δt awareness
+The model predicts ten supervised production keyframes sampled at
+``[0, 5, 10, 20, 30, 50, 70, 100, 150, 199]``. Spatial updates use directed,
+edge-aware graph attention; temporal updates use a GRU conditioned on the
+elapsed interval between adjacent keyframes.
 
 Architecture per step k → k+1:
   (a) spatial: msg_in_v ← Σ_e softmax(score_e) · m(h_src, h_dst, u_src, log a)
@@ -165,7 +147,7 @@ class MinPlusGATBlock(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# Physics Parameter Generator (Tier 2: True Cross-Domain Generalization)
+# Physics parameter generator
 # ---------------------------------------------------------------------------
 class PhysicsParameterGenerator(nn.Module):
     """Learns physics parameters (τ_u recovery time, c consumption rate) from
@@ -188,8 +170,7 @@ class PhysicsParameterGenerator(nn.Module):
     def __init__(self, d_hidden: int, graph_stats_dim: int = 5):
         super().__init__()
         self.d_hidden = d_hidden
-        # Encode graph-level statistics into a fixed representation
-        # Keep original 2-layer design for now - diagnostics only
+        # Encode graph-level statistics into a fixed representation.
         self.stats_encoder = nn.Sequential(
             nn.Linear(graph_stats_dim, 64), nn.GELU(),
             nn.Linear(64, d_hidden),
@@ -224,8 +205,7 @@ class PhysicsParameterGenerator(nn.Module):
         tau_u_logit = raw[:, 0]
         c_logit = raw[:, 1]
 
-        # τ_u ∈ [0.5, 5.0] days (recovery time)
-        # Reverted to original range for baseline + diagnostics only
+        # τ_u ∈ [0.5, 5.0] days (recovery time).
         tau_u = 0.5 + 4.5 * torch.sigmoid(tau_u_logit)
 
         # c ∈ [0.1, 1.0] (consumption rate / capacity ratio)
@@ -236,7 +216,7 @@ class PhysicsParameterGenerator(nn.Module):
 def _collapse_shape(delta, sigma, collapse_p=2.0):
     """Decline-front shape, returns value in [0,1] that is 1 at delta=0 (trough).
 
-    collapse_p == 2.0  -> EXACT original half-Gaussian exp(-delta^2/(2 sigma^2)).
+    collapse_p == 2.0  -> half-Gaussian exp(-delta^2/(2 sigma^2)).
     collapse_p  > 2.0  -> flat-top super-Gaussian: a PLATEAU for delta << 0
                           (inventory-buffer phase, u stays ~1) followed by a
                           STEEP onset toward the trough at delta=0. This matches
@@ -248,7 +228,7 @@ def _collapse_shape(delta, sigma, collapse_p=2.0):
                           logistic-like depletion front.
     """
     if collapse_p == 2.0:
-        # byte-identical to the historical implementation
+        # Half-Gaussian decline front.
         return torch.exp(-(delta * delta) / (2.0 * sigma * sigma + 1e-6))
     z = delta.abs() / (sigma + 1e-3)
     return torch.exp(-0.5 * z.pow(collapse_p))
@@ -258,19 +238,16 @@ def _recovery_shape(delta, T_r, recovery_p=1.0, recovery_gate=None, recovery_q=N
     """Recovery remaining-gap fraction r(t): 1 at the trough (delta=0), 0 at
     full recovery (delta -> inf).  u_recovery = u_ss + (1-P-u_ss) * r.
 
-    PLAN A (2026-06-15) per-node recovery gate: when `recovery_gate` (a (Nr,)
-    tensor in [0,1]) is given it OVERRIDES the scalar recovery_p and uses a
-    differentiable per-node MIXTURE between the two physical mechanisms:
+    When ``recovery_gate`` is supplied, it overrides the scalar ``recovery_p``
+    with a differentiable per-node mixture of two recovery mechanisms:
         r_v(z) = e^{-z} * (1 + (1 - g_v) * z),   z = delta/T_r
       g_v = 1 -> e^{-z}            (DIRECT node: instant rebound, single-exp)
       g_v = 0 -> (1+z) e^{-z}      (CASCADE node: lagged Erlang-2 refill)
-    This resolves the mixed-distribution failure of a single global recovery_p
-    (which forces every node onto one mechanism): the backbone predicts g_v so
-    direct nodes keep their fast rebound while cascade nodes get the lag, instead
-    of trading d30/d50 gains for a d70 collapse. r_v is monotone-decreasing in z
-    with r(0)=1, r(inf)=0 for any g in [0,1], so u stays a valid envelope.
+    The backbone predicts g_v so direct nodes may retain a fast rebound while
+    cascade nodes use a lagged refill. For any g in [0,1], r_v is monotone
+    decreasing with r(0)=1 and r(inf)=0.
 
-    recovery_p == 1.0 -> EXACT historical single-exponential exp(-delta/T_r).
+    recovery_p == 1.0 -> single-exponential exp(-delta/T_r).
                          Slope is MAXIMAL right at the trough (instant rebound).
                          This is exact for Henriet DIRECTLY-damaged nodes whose
                          capacity recovers as Delta(t)=Delta_0*exp(-t/tau).
@@ -289,11 +266,9 @@ def _recovery_shape(delta, T_r, recovery_p=1.0, recovery_gate=None, recovery_q=N
     """
     d = delta.clamp_min(0.0)
     z = d / (T_r + 1e-3)
-    # Recovery self-capacity (2026-06-15): per-node sharpness exponent q on the
-    # remaining-gap exponential, r(z) = exp(-z^q). q == 1 -> EXACT single-exp;
-    # q < 1 -> front-loaded FAST recovery (concave; fixes the systematic
-    # recovery LAG the d70 root-cause diagnostic found: bias -0.026 on the 64%
-    # recovering nodes); q > 1 -> lagged S-curve onset. r is monotone-decreasing
+    # Optional per-node sharpness q on r(z) = exp(-z^q). q == 1 gives a
+    # single exponential; q < 1 gives front-loaded recovery and q > 1 gives a
+    # lagged S-curve onset. r is monotone-decreasing
     # in z for any q > 0 with r(0)=1, r(inf)=0, so u stays a valid envelope.
     # Spans BOTH faster- and slower-than-single-exp (unlike recovery_gate, which
     # only goes slower) and is non-redundant with T_r (T_r scales z linearly,
@@ -340,7 +315,7 @@ def _reconstruct_trajectory(P, mu, sigma, T_r, days, u_ss=None, collapse_p=2.0,
     For t <= mu (collapse):  u(t) = 1 - P * collapse(t)              ; goes 1 -> 1-P
     For t >  mu (recovery):  u(t) = u_ss + (1-P - u_ss) * recovery(t); goes 1-P -> u_ss
 
-    Reduces to the original `1 - P*shape` when u_ss=1 (rebound regime, Inoue).
+    Reduces to `1 - P*shape` when u_ss=1 (rebound regime, Inoue).
     For Henriet's absorbing regime u_ss can drop to 0.
 
     Args:
@@ -438,7 +413,7 @@ def _reconstruct_trajectory_trimodal(P1, mu1, sigma1, T_r1,
     (Henriet) P3 should stay near zero, leaving the model bimodal in
     effect.
 
-    HIERARCHICAL dual temperature (2026-06-17): when `tau2` is provided the
+    With hierarchical dual temperatures, when ``tau2`` is provided the
     composition becomes a two-LEVEL nested softmin with INDEPENDENT sharpness
     at each seam:
         u = softmin_{tau2}( softmin_{tau}(u1, u2),  u3 )
@@ -620,7 +595,7 @@ class KSGATv3(nn.Module):
     TRAJ_DIM = 5     # min, mean, last, argmin/K, std
     # hop_encoding options:
     #   "none"     : no hop feature added                              (0 dim)
-    #   "onehot5"  : one-hot 0/1/2/3/>=4 (original V3tH)                (5 dim)
+    #   "onehot5"  : one-hot 0/1/2/3/>=4                               (5 dim)
     #   "graded2"  : [is_hop1, 1/(1+min(hop,4))]                        (2 dim)
     #                 — captures hop=1 outlier + monotone gradient per
     #                   characterise_dynamics.py Q7 (1000 events).
@@ -649,70 +624,45 @@ class KSGATv3(nn.Module):
                  blend_init=(2.0, 0.0, 0.0),
                  free_residual: bool = False):
         super().__init__()
-        # blend_init: initial logits for the triple_blend softmax over
-        # {trimodal/physics, rollout, direct}. Default (2,0,0) -> softmax
-        # ~[0.79,0.11,0.11] reproduces Y8. Exposed so a sweep can shift mass
-        # toward the DIRECT (edge-state-style) path (e.g. (0,0,2) or (-3,0,5)).
+        # Initial logits for softmax fusion over analytical, rollout, and direct
+        # streams. The default maps to approximately [0.79, 0.11, 0.11].
         self.blend_init = tuple(float(x) for x in blend_init)
         self.use_inv_state = bool(use_inv_state)
         self.moe_router = bool(moe_router)
-        # blend_rollout: run rollout in parallel and learn per-kf alpha to
-        # blend rollout-u_kf with parametric u_kf. Was previously gated by
-        # decoder_mode=="param2_blend"; now an orthogonal flag so it can
-        # combine with param3+MoE (param3_moe_blend).
+        # Run rollout in parallel and learn per-keyframe fusion weights.
         self.blend_rollout = bool(blend_rollout)
-        # Plan 3 (2026-06-12): triple_blend — adds a third "direct head" path
-        # (Linear(d, K) -> sigmoid, identical to the pure-edge-state baseline kf_head)
-        # and learns per-keyframe softmax mixing weights across
-        #   { trimodal/bimodal envelope, rollout, direct }.
-        # Implicitly turns on blend_rollout because the rollout path is one of
-        # the three mixed streams. Trimodal stays the dominant prior at init
-        # (mixing logits init biases path-0 to weight ~0.79), so the model
-        # boots up behaving like Y4a-H and learns to redistribute mass only
-        # where it pays off. Physics interpretability of (mu, sigma, A) is
-        # preserved; the mixing weights themselves are reportable as a
-        # "where does each path contribute?" narrative.
+        # Add a direct Linear(d, K) readout and learn per-keyframe softmax
+        # weights across analytical, rollout, and direct streams. Enabling the
+        # three-stream blend also enables the rollout stream.
         self.triple_blend = bool(triple_blend)
         if self.triple_blend:
             self.blend_rollout = True
-        # Plan A (2026-06-14): physics-prior free residual (Δ-learning).
-        # u = u_physics(μ,σ,A) + Δ_free, Δ from a Linear(d,K) head init to ZERO
-        # (weight+bias) so training boots at the EXACT physics trajectory (=BD)
-        # and Δ gets gradient from step 1. No blend / no softmax => immune to
-        # the Y8 init-trap. Output clamped to [0,1]. Standalone (not combined
-        # with triple_blend/blend_rollout).
+        # Optional zero-initialized residual: u = u_analytical + delta_free.
+        # It is a standalone path and the output is clamped to [0, 1].
         self.free_residual = bool(free_residual)
-        # Flat-top decline front (2026-06-14): exponent for the collapse shape.
-        # decline_p == 2.0 -> historical Gaussian (zero behavior change).
+        # Exponent for the decline front. decline_p == 2 gives a Gaussian;
         # decline_p  > 2.0 -> super-Gaussian plateau-then-steep onset that
         # matches the inventory-depletion front of the Henriet/Inoue sims and
-        # fixes the early-keyframe (d5/d10) over-early-decline. Set via
-        # MECAS_DECLINE_P env in train_v3de; standalone, orthogonal to all blends.
+        # represents an inventory-depletion plateau followed by a steep onset.
         self.decline_p = float(getattr(cfg, "decline_p", 2.0)) if cfg is not None else 2.0
-        # Recovery-branch family (2026-06-14): exponent for the rebound shape.
-        # recovery_p == 1.0 -> historical single-exp exp(-delta/T_r) (instant
+        # Exponent for the rebound shape.
+        # recovery_p == 1.0 -> single-exp exp(-delta/T_r) (instant
         #   rebound at the trough; exact for Henriet directly-damaged nodes).
         # recovery_p  > 1.0 -> Erlang-k/Gamma-k survival fn = LAGGED concave
         #   startup matching the inventory-REFILL convolution of cascade nodes
-        #   (S(t+1)=S+dt(receipts-consumption)) in BOTH simulators. Fixes the
-        #   too-fast mid-recovery (d30/d50). Set via MECAS_RECOVERY_P env in
-        #   train_v3de; standalone, orthogonal to the decline front + all blends.
+        #   (S(t+1)=S+dt(receipts-consumption)) in both simulators.
         self.recovery_p = float(getattr(cfg, "recovery_p", 1.0)) if cfg is not None else 1.0
-        # PLAN A (2026-06-15): per-node recovery gate. When cfg.recovery_gate is
+        # Optional per-node recovery gate. When cfg.recovery_gate is
         # True a Linear(d,1)->sigmoid head predicts g_v in [0,1] per node that
         # mixes DIRECT single-exp (g=1) and CASCADE Erlang-2 (g=0) recovery,
         # overriding the global scalar recovery_p. Built below once d is known.
         self.recovery_gate_enabled = bool(getattr(cfg, "recovery_gate", False)) if cfg is not None else False
-        # Recovery self-capacity (2026-06-15): per-node recovery sharpness q_v.
+        # Optional per-node recovery sharpness q_v.
         # When cfg.recovery_q is True a Linear(d,1) head predicts q_v in
         # [recovery_q_min, recovery_q_max] mapping the recovery shape to
-        # r(z)=exp(-z^q). q<1 speeds recovery, q>1 lags it. Targets the d70
-        # recovery-lag the root-cause diagnostic localized (own-state, not graph).
-        # Built below once d is known. Adds (d+1) params.
+        # r(z)=exp(-z^q). q<1 speeds recovery and q>1 delays it.
         self.recovery_q_enabled = bool(getattr(cfg, "recovery_q", False)) if cfg is not None else False
-        # Ablation toggles (2026-06-16): clean component-removal switches for the
-        # Henriet ablation table (flagship MeCaSNet). Both default OFF so every
-        # existing variant is byte-for-byte unchanged.
+        # Single-component ablation switches.
         #   ablate_uncond      : zero shock_mask & delta0 fed to the NODE ENCODER
         #     so the learned representation/propagation is "unconditioned" (no
         #     Day-0 shock identity). u0's physical IC (1 - delta0*shock) and the
@@ -723,7 +673,7 @@ class KSGATv3(nn.Module):
         #     loops, leaving only forward (supplier->consumer) attention msg_in.
         self.ablate_uncond = bool(getattr(cfg, "ablate_uncond", False)) if cfg is not None else False
         self.ablate_forward_only = bool(getattr(cfg, "ablate_forward_only", False)) if cfg is not None else False
-        # PhysRecover (2026-06-15): graph-coupled inventory recovery integrator.
+        # Optional graph-coupled inventory recovery integrator.
         # When cfg.physrecover is True the closed-form recovery branch (t > mu_v)
         # is REPLACED by an on-graph relaxation that faithfully mirrors BOTH
         # simulators' production rule  P_act = min(P_cap, P_prop=Leontief(S), D):
@@ -733,12 +683,11 @@ class KSGATv3(nn.Module):
         # i.e. a node cannot recover faster than its UPSTREAM suppliers recover
         # ("my recovery waits for my suppliers' recovery") — the graph+time
         # coupling that a per-node closed-form envelope structurally cannot
-        # express (the d70+ recovery-seam collapse). own_recovery_v(t) is the
+        # express. own_recovery_v(t) is the
         # decoder's existing closed-form recovery (so the interpretable
         # mu/sigma/A physics baseline is preserved); the integrator only imposes
         # the supply ceiling + a per-node relaxation rate kappa_v. This is the
-        # SOLE recovery path (no blend) so it has very few effective DoF and
-        # regularises the free-residual head's d70 overfit. Built below.
+        # sole recovery path when enabled.
         self.physrecover_enabled = bool(getattr(cfg, "physrecover", False)) if cfg is not None else False
         # During warmup, router output is overridden to uniform [1/3,1/3,1/3]
         # so all 3 Gaussian amplitudes receive equal gradient.
@@ -764,12 +713,11 @@ class KSGATv3(nn.Module):
         self.prewarm_layers = int(prewarm_layers)
         self.phase_switch_k = int(phase_switch_k)
         self.param2_preset = param2_preset
-        # Plan 6 (2026-06-12): learnable softmin temperature for trimodal
-        # envelope. When learnable_bimodal_tau=True, replace fixed tau with a
+        # Learnable softmin temperature for the trimodal envelope. When enabled,
+        # replace fixed tau with a
         # softplus-parameterised scalar (>=1e-4 floor) so the model can learn
         # how much to soften the hard min at seam points like d10/d70.
-        # Backward compat: default flag=False keeps the original fixed-float
-        # behaviour for every existing variant.
+        # The default uses the fixed scalar value.
         self.learnable_bimodal_tau = bool(learnable_bimodal_tau)
         if self.learnable_bimodal_tau:
             init = max(float(bimodal_tau), 0.02)        # avoid log(0)
@@ -781,7 +729,7 @@ class KSGATv3(nn.Module):
             self._log_bimodal_tau = None
             self.bimodal_tau = float(bimodal_tau)
         self.use_film = bool(use_film)
-        # ----- Phase 3: graph-statistics FiLM conditioning -----
+        # ----- graph-statistics FiLM conditioning -----
         # 5 SCALE-INVARIANT stats per event (no domain_id, no log V, no log E):
         #   [log(E/V), shock_frac, mean(log1p in_deg), std(log1p in_deg),
         #    max(log1p in_deg) - mean]
@@ -799,18 +747,14 @@ class KSGATv3(nn.Module):
                 bias = torch.zeros(2 * cfg.d_hidden)
                 bias[:cfg.d_hidden] = 1.0   # γ default = 1
                 self.film_net[-1].bias.copy_(bias)
-        # ----- Tier 2: Learned Physics Parameters (τ_u, c) -----
-        # Replace hardcoded stub params with learnable per-node parameters
-        # conditioned on graph statistics. Enables cross-domain generalization
-        # by learning that Henriet (dense) uses faster τ_u, Inoue (sparse) slower.
+        # ----- learned physical parameters (τ_u, c) -----
+        # Learn per-node parameters conditioned on graph statistics.
         self.phys_param_gen = PhysicsParameterGenerator(cfg.d_hidden, graph_stats_dim=5)
         # bimodal range params (used by param2 / param2_blend)
         # default:    mu1, mu2 ∈ [0, 50],  sigma ∈ [2, 30]
         # deep_mid:   mu1, mu2 ∈ [2, 82],  sigma ∈ [2, 52]   (G1: align with d30 trough)
         # g3_narrow:  mu1 ∈ [0, 50] sigma1 ∈ [2, 30]   (early-cascade Gaussian)
-        #             mu2 ∈ [0, 200] sigma2 ∈ [2, 60]  (late-recovery Gaussian; widened
-        #             after diagnose_regression revealed d100-d199 trough collapse —
-        #             both mu caps at 50 made trough at d70+ structurally impossible)
+        #             mu2 ∈ [0, 200] sigma2 ∈ [2, 60]  (late recovery)
         if param2_preset == "deep_mid":
             self.p2_mu1_off, self.p2_mu1_scale = 2.0, 80.0
             self.p2_sigma1_off, self.p2_sigma1_scale = 2.0, 50.0
@@ -838,23 +782,13 @@ class KSGATv3(nn.Module):
         self.p3_sigma1_off, self.p3_sigma1_scale = 2.0, 18.0
         self.p3_mu2_off, self.p3_mu2_scale = 20.0, 70.0
         self.p3_sigma2_off, self.p3_sigma2_scale = 3.0, 32.0
-        # G2 REPOSITION fix (2026-06-17, cfg.p3_g2_repos): the d70 root-cause
-        # diagnostic proved G2 (mid Gaussian) is NEVER the softmin winner on any
-        # day -- G1 owns [30,86], G3 owns [88,110] -- so G2 is gradient-starved,
-        # T_r2 pins to its floor, and d70 R2 collapses 0.63 -> 0.015. Narrowing
-        # mu2 from [20,90] to ~[45,85] forces G2's trough into the d70 window so
-        # it can become the deepest curve there and finally receive gradient.
-        # env-gated; default range unchanged when off.
+        # Optional override for the G2 center range. The default remains
+        # [20, 90]; the override can place the middle component near d70.
         if cfg is not None and bool(getattr(cfg, "p3_g2_repos", False)):
             self.p3_mu2_off = float(getattr(cfg, "p3_mu2_off_override", 45.0))
             self.p3_mu2_scale = float(getattr(cfg, "p3_mu2_scale_override", 40.0))
-        # Step A revert (2026-06-12): roll back Plan-1 G3 widening to Y2 values.
-        # Plan-1 widened mu3 [100,220]->[60,220] and sigma3 floor 15->10, but Y3-H
-        # ablation showed d70 R2_csc DROPPED -0.084 (0.581->0.497): G3 became too
-        # narrow/early and ate G2's territory at the seam. Reverting to original
-        # Y2 bands so G3 cleanly owns d100+ and the seam at d70 returns to G2's
-        # control. Keep wider residual head (d->2d->K) and Plan-1 alpha schedule
-        # so this is a clean single-variable test of the mu3/sigma3 widening.
+        # The third component covers late recovery with center [100, 220] and
+        # width [15, 60].
         self.p3_mu3_off, self.p3_mu3_scale = 100.0, 120.0
         self.p3_sigma3_off, self.p3_sigma3_scale = 15.0, 45.0
         d = cfg.d_hidden
@@ -862,7 +796,7 @@ class KSGATv3(nn.Module):
         self.encoder = NodeEncoderV3(Fv, d, hop_dim=hop_dim)
         u_init = 0.99 if u_head_bias_high else 0.95
 
-        # ----- Variant F: phase-aware aggregation -----
+        # ----- phase-aware aggregation -----
         # When aggr_mode="phase":
         #   - rollout step k: minplus iff k <= phase_switch_k (collapse phase)
         #   - prewarm + param-decoder internal: first 2/3 layers minplus,
@@ -881,11 +815,9 @@ class KSGATv3(nn.Module):
                                   aggr_mode=aggr_mode, tropical_tau=tropical_tau,
                                   use_inv_state=self.use_inv_state)
 
-        # ----- Plan A: dt-aware inter-keyframe spatial diffusion -----
-        # A single GAT block applied n_iter-1 EXTRA times before each KSGATStep,
-        # where n_iter = round(dt_days / D_GAT_DAYS). Compensates for sparse-graph
-        # cascade depth mismatch (Inoue d30 R²=-0.84 diagnostic). Zero extra cost
-        # on dense graphs (Henriet), large gain on sparse (Inoue).
+        # ----- interval-aware inter-keyframe spatial diffusion -----
+        # Apply n_iter-1 extra GAT passes before each KSGATStep, where
+        # n_iter = round(dt_days / D_GAT_DAYS).
         self.D_GAT_DAYS = 5.0
         self.diffusion_max_extra = 6
         if aggr_mode == "softmin":
@@ -894,12 +826,10 @@ class KSGATv3(nn.Module):
             self.diffusion_gat = DirectedGATBlock(d)
         self.diffusion_norm = nn.LayerNorm(d)
 
-        # ----- Variant D: encoder-side spatial pre-warm -----
+        # ----- encoder-side spatial prewarm -----
         # N spatial-only GAT layers with residual + LayerNorm, run once after
-        # the encoder (with constant u=u0).  Gives h0 multi-hop reach BEFORE
-        # the rollout starts — the V3paramA d5 R² jump (-1.30 → +0.13) was
-        # almost certainly driven by its 3 internal GAT layers, not the
-        # parametric form per se.  Variant D isolates that effect.
+        # the encoder with constant u=u0, giving h0 multi-hop context before
+        # the rollout begins.
         if prewarm_layers > 0:
             blocks = []
             for i in range(prewarm_layers):
@@ -1001,9 +931,7 @@ class KSGATv3(nn.Module):
             #   P1, mu1, sigma1, T_r1,  P2, mu2, sigma2, T_r2,
             #   P3, mu3, sigma3, T_r3,  u_ss
             # Range partitioning enforced by p3_mu*_off/scale (early/mid/late).
-            # Safety net: P3 init small (sigmoid(-2.2)≈0.10) so trajectory
-            # starts essentially bimodal — model grows P3 only if late-trough
-            # nodes are present (Inoue), else P3 stays low (Henriet safe).
+            # P3 starts at a moderate amplitude and remains independently learned.
             self.param_head = nn.Sequential(
                 nn.Linear(d, d), nn.GELU(),
                 nn.Linear(d, 13),
@@ -1011,9 +939,7 @@ class KSGATv3(nn.Module):
             with torch.no_grad():
                 # mu1=15, mu2=50, mu3=130 (in tightened range [100,220])
                 # sigma1=8, sigma2=15, sigma3=30
-                # P3 init 0.20 (was 0.10) — prior trimodal saw G3 die (P3≈0
-                # for 100% of nodes). Higher init + range partition unlocks
-                # gradient AND removes early-Gaussian competition.
+                # P3 initialization and range partition keep all components active.
                 bias = torch.tensor([
                     math.log(0.20 / 0.80),                                  # P1 → 0.20
                     math.log(0.375 / 0.625),                                # mu1 → 15
@@ -1038,12 +964,10 @@ class KSGATv3(nn.Module):
         if self.blend_rollout:
             K = len(cfg.key_days)
             self.alpha_kf = nn.Parameter(torch.zeros(K))
-        # Plan 3: triple_blend extra heads. Direct head mirrors the pure-edge-state
-        # baseline (Linear(d, K) -> sigmoid). Mixing logits shape (K, 3); a
+        # Three-stream fusion heads. Mixing logits have shape (K, 3); a
         # softmax over the last dim yields per-keyframe weights summing to 1
         # for {trimodal, rollout, direct}. Initial logits [2, 0, 0] -> softmax
-        # ~ [0.79, 0.11, 0.11] so the parametric/physics path dominates at
-        # init (matches Y4a-H behaviour) and the model learns to redistribute.
+        # approximately [0.79, 0.11, 0.11] at initialization.
         if self.triple_blend:
             K = len(cfg.key_days)
             self.kf_direct_head = nn.Linear(d, K)
@@ -1054,22 +978,15 @@ class KSGATv3(nn.Module):
                 nn.init.zeros_(self.kf_direct_head.weight)
             init_logits = torch.zeros(K, 3)
             _bi = self.blend_init  # (physics, rollout, direct)
-            init_logits[:, 0] = _bi[0]   # was hardcoded 2.0 (Y8 default)
+            init_logits[:, 0] = _bi[0]
             init_logits[:, 1] = _bi[1]
             init_logits[:, 2] = _bi[2]
             self.blend_logits = nn.Parameter(init_logits)
-        # Plan A: physics-prior free residual head (zero-init => starts at BD).
+        # Zero-initialized residual head for the analytical trajectory.
         if self.free_residual:
             K = len(cfg.key_days)
-            # Wider corrector (2026-06-17): MECAS_RESIDUAL_WIDE=1 -> cfg.residual_wide
-            # swaps the flat Linear(d,K) for a d->2d->K GELU MLP. The d50/d70
-            # decomposition (var_g/var_p/bias/Pearson r) showed the flagship gap
-            # vs the edge-state baseline is ~50% calibration: the linear d->K head can
-            # only apply a single linear projection of the node embedding and
-            # cannot express the LOCALIZED per-node upward correction the param3
-            # trimodal SEAM (G1/G2 at d50, G2/G3 at d70-100) needs. Mirrors the
-            # KSGATv3ResidualA fix (d->2d->K) that recovered +0.55 at d70. Last
-            # layer zero-init so training still boots at the exact physics traj.
+            # Optionally replace Linear(d,K) with a d->2d->K GELU MLP. The last
+            # layer is zero-initialized so the initial output is unchanged.
             _res_wide = bool(getattr(cfg, "residual_wide", False)) if cfg is not None else False
             if _res_wide:
                 self.kf_residual_head = nn.Sequential(
@@ -1084,45 +1001,15 @@ class KSGATv3(nn.Module):
                 with torch.no_grad():
                     nn.init.zeros_(self.kf_residual_head.weight)
                     nn.init.zeros_(self.kf_residual_head.bias)
-            # Time-masked (PROTECTED) residual (2026-06-17): MECAS_RESID_TAIL_MASK=1
-            # -> cfg.resid_tail_mask. The full residual trade-off ceiling showed
-            # the free residual HELPS the decline/peak region (d5..d30 +0.10, peak
-            # +0.05 since the trough sits in the decline window) but OVERFITS the
-            # recovery tail: clean-test d199 0.155 -> -0.258, and in real joint
-            # training this tail overfit transfers to d70 (gradient cannibalization
-            # + train-node overfit) crashing d70 to -0.30. Masking the residual to
-            # the decline window (days<=resid_mask_day, default 50) and forcing it
-            # to ZERO on the recovery tail (d70+) keeps the peak/bulk gain, restores
-            # the tail to the pure-physics level, and STRUCTURALLY prevents the d70
-            # collapse (no residual exists at d70 to be cannibalized/overfit). The
-            # masked head won the ceiling: kf_mean 0.640 (> pure-phys 0.627 and
-            # full-res 0.608) with peak 0.703 and d199 +0.139.
+            # The optional time mask limits the residual to days through
+            # resid_mask_day and leaves the analytical recovery tail unchanged.
             self.resid_tail_mask = bool(getattr(cfg, "resid_tail_mask", False)) if cfg is not None else False
             self.resid_mask_day = float(getattr(cfg, "resid_mask_day", 50.0)) if cfg is not None else 50.0
-        # Per-node SEAM temperature τ_v (2026-06-17): MECAS_SEAM_TAU=1 ->
-        # cfg.seam_tau_pernode. The d50/d70 R2 decomposition localized the
-        # flagship deficit to a drop in Pearson r (node RANKING) at the param3
-        # G1/G2 (d50) and G2/G3 (d70) seams — a node-DISTINGUISHABILITY loss the
-        # global hard softmin τ=0.02 causes: near each Gaussian crossover the
-        # hard min "clamps" adjacent nodes toward the crossing value, so small
-        # μ/σ errors get amplified into rank noise (var_p/var_g=1.16 @ d50, high
-        # variance but wrong direction). A per-node τ_v = softplus(W·h+b)+floor
-        # lets cascade-buffered nodes (smooth multi-wave overlap) learn a LARGE
-        # τ (graceful blend, rank preserved) while directly-shocked nodes keep a
-        # small τ (sharp drop). This is the ONLY seam fix that stays a pure
-        # closed-form physics decoder (A adds a free residual, C adds a direct
-        # readout — both break interpretability; this keeps the (μ,σ,A) triples
-        # exact and only makes the composition sharpness node-conditional).
-        # Adds (d+1) params. bias init so τ_v(t=0)=0.02 == current global value
-        # (zero behavioural change at init); weight zero-init.
+        # Optional per-node softmin temperature. This keeps the analytical
+        # components explicit while allowing node-conditional seam smoothness.
         self.seam_tau_pernode = bool(getattr(cfg, "seam_tau_pernode", False)) if cfg is not None else False
-        # G2 ANTI-STARVATION fix (2026-06-17, cfg.seam_tau_init_bias): the seam
-        # softmin runs near-hard-min (tau~0.02) so gradient is winner-take-all
-        # and the never-winning G2 gets ZERO gradient. Raising the tau init bias
-        # (e.g. -2.0 -> tau~0.12) makes the softmin pass SOME gradient to G2 from
-        # the start so it can climb out of the dead corner; the per-node head can
-        # still learn to sharpen back down where needed. Default -3.954 (tau=0.02,
-        # unchanged behaviour) when not overridden.
+        # Bias controlling the initial per-node seam temperature. The default
+        # maps to tau=0.02.
         _tau_b = float(getattr(cfg, "seam_tau_init_bias", -3.954)) if cfg is not None else -3.954
         if self.seam_tau_pernode:
             self.seam_tau_head = nn.Linear(d, 1)
@@ -1130,16 +1017,9 @@ class KSGATv3(nn.Module):
                 nn.init.zeros_(self.seam_tau_head.weight)
                 # softplus(b)+1e-3 = 0.02 -> softplus(b)=0.019 -> b≈-3.954
                 self.seam_tau_head.bias.fill_(_tau_b)
-        # Hierarchical DUAL seam temperature (2026-06-17): MECAS_SEAM_TAU2=1 ->
-        # cfg.seam_tau_dual. Single-tau per-node B drove d50 to 0.73 but
-        # collapsed d70 to -0.30: ONE per-node tau cannot serve BOTH the G1/G2
-        # (d50) and G2/G3 (d70) seams (the large tau that blends d50 over-mixes
-        # G3 into d70). This adds a SECOND per-node temperature head so the
-        # trimodal composition becomes a two-level nested softmin
+        # Optional second temperature head for the nested softmin
         #   u = softmin_{tau2_v}( softmin_{tau1_v}(u1,u2), u3 ),
-        # tau1_v owning the d50 seam and tau2_v the d70 seam INDEPENDENTLY.
-        # Implies seam_tau_pernode (the first head). Adds another (d+1) params;
-        # both heads bias-init to tau=0.02 (zero behavioural change at start).
+        # where tau1_v controls G1/G2 and tau2_v controls their fusion with G3.
         self.seam_tau_dual = bool(getattr(cfg, "seam_tau_dual", False)) if cfg is not None else False
         if self.seam_tau_dual:
             assert self.seam_tau_pernode, "seam_tau_dual requires seam_tau_pernode (head 1)"
@@ -1147,7 +1027,7 @@ class KSGATv3(nn.Module):
             with torch.no_grad():
                 nn.init.zeros_(self.seam_tau2_head.weight)
                 self.seam_tau2_head.bias.fill_(_tau_b)
-        # Plan A (2026-06-15): per-node recovery gate head. Zero-init weight +
+        # Per-node recovery gate head. Zero-initialized weight and
         # zero bias => sigmoid(0)=0.5 at start (neutral mix of direct/cascade)
         # so the backbone learns g_v per node from the start. Adds (d+1) params.
         if self.recovery_gate_enabled:
@@ -1155,7 +1035,7 @@ class KSGATv3(nn.Module):
             with torch.no_grad():
                 nn.init.zeros_(self.recovery_gate_head.weight)
                 nn.init.zeros_(self.recovery_gate_head.bias)
-        # PhysRecover (2026-06-15): per-node recovery-rate head kappa_v. Zero-init
+        # Per-node graph-recovery rate head kappa_v. Zero-initialized
         # weight + zero bias => sigmoid(0)=0.5 => kappa starts mid-range so the
         # supply-constrained relaxation is active from step 1 and the backbone
         # learns per-node recovery speed. Adds (d+1) params. kappa is mapped to
@@ -1170,9 +1050,8 @@ class KSGATv3(nn.Module):
             # supply-limited refill to near-instant rebound. Overridable via env.
             self.physrec_kappa_min = float(getattr(cfg, "physrec_kappa_min", 0.005)) if cfg is not None else 0.005
             self.physrec_kappa_max = float(getattr(cfg, "physrec_kappa_max", 0.15)) if cfg is not None else 0.15
-        # Recovery self-capacity (2026-06-15): per-node recovery-sharpness head
-        # q_v. Zero-init weight; bias set so sigmoid(bias) maps to q==1.0 at init
-        # => starts at the EXACT single-exp recovery (clean baseline) and learns
+        # Per-node recovery-sharpness head q_v. The bias maps to q==1.0 at init,
+        # yielding a single-exponential recovery before learning
         # to deviate per node. Adds (d+1) params. q is mapped to
         # [recovery_q_min, recovery_q_max] in the forward pass.
         if self.recovery_q_enabled:
@@ -1230,9 +1109,7 @@ class KSGATv3(nn.Module):
         # ----- MoE: 3-way regime router (early/mid/late) -----
         # Only active when moe_router=True (intended with decoder_mode="param3").
         # Output: softmax(3) per node → scales (P1, P2, P3) via amplitude gate.
-        # Diagnosed root cause (loss imbalance × allocation): single param_head
-        # averages P_i across regimes; majority (86% early/mid) suppresses P3
-        # toward 0. Per-node routing decouples amplitude budget per regime.
+        # Per-node routing decouples amplitude allocation across regimes.
         if self.moe_router:
             self.regime_router_head = nn.Sequential(
                 nn.Linear(d, d), nn.GELU(),
@@ -1246,7 +1123,7 @@ class KSGATv3(nn.Module):
 
     def _physrecover_rollout(self, u_kf_param, h_for_route, days,
                              edge_src, edge_dst, edge_a):
-        """Graph-coupled inventory recovery integrator (PhysRecover, 2026-06-15).
+        """Graph-coupled inventory recovery integrator.
 
         Replaces the closed-form recovery branch (t > trough) of u_kf_param with
         an on-graph relaxation faithful to the simulators' production rule
@@ -1313,8 +1190,8 @@ class KSGATv3(nn.Module):
         """Compute the Day-0 production-ratio boundary.
 
         The manuscript profile uses the capacity boundary
-        u0 = 1 - shock * delta0. day0_demand_pullback is an explicit
-        legacy option for archived ARIO experiments; when enabled, it also
+        u0 = 1 - shock * delta0. ``day0_demand_pullback`` is an optional
+        compatibility setting; when enabled, it also
         applies an output-share-weighted pullback from damaged customers. Both
         paths are deterministic and contain no learned parameters.
         """
@@ -1341,7 +1218,7 @@ class KSGATv3(nn.Module):
         edge_src = batch["edge_src"]
         edge_dst = batch["edge_dst"]
         edge_a = batch["edge_a"]
-        # Henriet eq-4 supplier-output share (data.py provides; legacy batches
+        # Henriet eq-4 supplier-output share (data.py provides; older batches
         # without this field gracefully degrade _predict_u0 to capacity-only).
         edge_outshare = batch.get("edge_outshare", None)
         key_days = batch["key_days"]                        # (K,) int
@@ -1375,9 +1252,8 @@ class KSGATv3(nn.Module):
             enc_delta0 = delta0
         h = self.encoder(x_v, enc_shock, enc_delta0, evt, hop_feat=hop_feat)  # (Nr,d)
 
-        # ---- Phase 3: FiLM conditioning on SCALE-INVARIANT graph statistics ----
-        # Removed: domain_id (cheat label) and log V / log E (scale fingerprints).
-        # Kept: dimensionless degree-distribution shape features only.
+        # ---- FiLM conditioning on scale-invariant graph statistics ----
+        # Uses dimensionless degree-distribution shape features only.
         if self.use_film:
             Nr_f = float(x_v.shape[0])
             E_f = float(edge_src.shape[0])
@@ -1433,8 +1309,7 @@ class KSGATv3(nn.Module):
             # For blend_rollout we MUST keep `h` pristine because the parallel
             # rollout below consumes it; the param branch runs on a clone.
             # For pure param/param2/param3 (no blend) we update `h` in place so
-            # downstream heads (reach_head, active_head, peak_direct_head) see
-            # the 3-GAT-deep spatial features — this matches the round-6 behaviour.
+            # downstream heads see the three-layer spatial features.
             if self.blend_rollout:
                 h_param = h
                 for gat, norm in zip(self.param_gat, self.param_gat_norms):
@@ -1452,12 +1327,12 @@ class KSGATv3(nn.Module):
                     h = norm(h + msg_in + msg_out)
                 raw = self.param_head(h)
                 h_for_route = h
-            # PLAN A (2026-06-15): per-node recovery gate g_v in [0,1] (None when
+            # Per-node recovery gate g_v in [0,1] (None when
             # disabled => decoder falls back to the scalar recovery_p path).
             rec_gate = None
             if getattr(self, "recovery_gate_enabled", False):
                 rec_gate = torch.sigmoid(self.recovery_gate_head(h_for_route)).squeeze(-1)  # (Nr,)
-            # Recovery self-capacity (2026-06-15): per-node sharpness q_v in
+            # Per-node recovery sharpness q_v in
             # [q_min, q_max] => r(z)=exp(-z^q). None when disabled (single-exp).
             rec_q = None
             if getattr(self, "recovery_q_enabled", False):
@@ -1500,13 +1375,8 @@ class KSGATv3(nn.Module):
                         route = torch.full_like(route_logits, 1.0 / 3.0)
                     else:
                         route = torch.softmax(route_logits, dim=-1)
-                    # Per-node amplitude gate: P_eff = P × route[k]. Bounded in
-                    # [0, 1] (route ≤ 1). Bug fix from previous attempt: the
-                    # earlier `* 3.0` multiplier broke the [0,1] amplitude
-                    # bound when router collapsed to one-hot, sending u(t) to
-                    # negative values and crashing R²pk/R²csc (0.66 → 0.53).
-                    # Cost: during uniform warmup, P_eff = P/3 (shallow dips
-                    # — temporary; sigmoid biases adapt within first epochs).
+                    # Per-node amplitude gate: P_eff = P × route[k], bounded
+                    # in [0, 1]. During uniform warmup, P_eff = P/3.
                     P1_v = P1_v * route[:, 0]
                     P2_v = P2_v * route[:, 1]
                     P3_v = P3_v * route[:, 2]
@@ -1547,12 +1417,8 @@ class KSGATv3(nn.Module):
                     recovery_q=rec_q,
                 )
                 P_max_v = torch.maximum(P1_v, P2_v)
-            # ---- Plan A: physics-prior free residual (Δ-learning) ----
-            # u = u_physics + Δ_free. Δ from a zero-init Linear(d,K) head, so
-            # at init u == u_physics (= BD) and Δ learns an UNCONSTRAINED
-            # correction with gradient from step 1. No blend / no softmax =>
-            # immune to the Y8 init-trap. The (μ,σ,A) triples stay reportable
-            # as the interpretable physics baseline; Δ is the learned residual.
+            # Zero-initialized residual: u = u_analytical + delta_free. The
+            # analytical component parameters remain available in the output.
             if getattr(self, "free_residual", False):
                 delta_free = self.kf_residual_head(h_for_route).t()    # (K, Nr)
                 if getattr(self, "resid_tail_mask", False):
@@ -1561,7 +1427,7 @@ class KSGATv3(nn.Module):
                     day_mask = (days <= self.resid_mask_day).to(delta_free.dtype).view(-1, 1)  # (K,1)
                     delta_free = delta_free * day_mask
                 u_kf_param = (u_kf_param + delta_free).clamp(0.0, 1.0)
-            # ---- PhysRecover (2026-06-15): graph-coupled recovery integrator ----
+            # ---- graph-coupled recovery integrator ----
             # Replaces the recovery branch (frames after each node's trough) with
             # an on-graph relaxation u_v(t+dt)=u_v+(1-e^{-kappa_v dt})(min(own,
             # supply_v)-u_v), supply_v = input-share-weighted mean of suppliers'
@@ -1586,7 +1452,7 @@ class KSGATv3(nn.Module):
                 for k in range(1, K):
                     dt_days = days[k] - days[k - 1]
                     dt_norm = dt_days / self.DT_NORM
-                    # Plan A: extra spatial diffusion proportional to dt
+                    # Extra spatial diffusion proportional to the interval.
                     n_extra = min(self.diffusion_max_extra,
                                   max(0, int(round(float(dt_days) / self.D_GAT_DAYS)) - 1))
                     u_prev = u_kf_roll[-1]
@@ -1616,7 +1482,7 @@ class KSGATv3(nn.Module):
                     u_kf_roll.append(u)
                 u_kf_roll_t = torch.stack(u_kf_roll, dim=0)            # (K, Nr)
                 if self.triple_blend:
-                    # ---- Plan 3: 3-way per-keyframe softmax blend ----
+                    # ---- three-stream per-keyframe softmax fusion ----
                     # Direct head consumes h_param (same latent as trimodal
                     # decoder) so all three paths share the SAME post-encoder
                     # view of the graph — the only difference is their
@@ -1657,7 +1523,7 @@ class KSGATv3(nn.Module):
             for k in range(1, K):
                 dt_days = days[k] - days[k - 1]
                 dt_norm = dt_days / self.DT_NORM
-                # Plan A: extra spatial diffusion proportional to dt
+                # Extra spatial diffusion proportional to the interval.
                 n_extra = min(self.diffusion_max_extra,
                               max(0, int(round(float(dt_days) / self.D_GAT_DAYS)) - 1))
                 u_prev = u_kf[-1]
@@ -1808,7 +1674,7 @@ class KSGATv3(nn.Module):
             h_star=h, h_final=h,
             blend_lambda=torch.zeros((), device=h.device),
             phys_scale=torch.ones_like(peak),
-            # Diagnostic outputs for Tier 2 monitoring
+            # Learned-parameter monitoring outputs.
             tau_u_learned=tau_u,
             c_learned=c,
             u_ss_learned=u_ss_diag,
@@ -1826,7 +1692,7 @@ class KSGATv3(nn.Module):
         """Return the current bimodal/trimodal softmin temperature.
 
         - Fixed mode (default):    Python float (0 = hard min, >0 = soft min).
-        - Learnable mode (Plan 6): 0-d Tensor via softplus(_log_bimodal_tau)
+        - Learnable mode: 0-d Tensor via softplus(_log_bimodal_tau)
           with a 1e-4 floor; gradients flow back to the parameter so the
           model can self-tune the smoothness of the d10/d70 seam.
         """

@@ -138,9 +138,9 @@ The paper predictor does not read simulator-only recovery/mode/tier fields. They
 may still be present for audit stratification, but are exposed only when
 `include_audit_metadata=True`.
 
-Legacy `clean` and `full` modes recognize fields such as
+Compatibility modes `clean` and `full` recognize fields such as
 `recovery_per_target`, `delta_per_target`, `mode`, `tier`, `delta`, and
-`recovery_days`. These modes are not the final manuscript information set.
+`recovery_days`. These modes are outside the article-profile information set.
 
 ## Information boundary
 

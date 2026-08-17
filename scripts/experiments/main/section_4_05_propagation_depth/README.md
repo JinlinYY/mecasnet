@@ -7,7 +7,7 @@ and feedback-position strata.
 ```bash
 python scripts/experiments/main/section_4_05_propagation_depth/propagation_depth.py \
   --data-root /path/to/authorized/data \
-  --checkpoint /path/to/legacy-y8-seed0.pt \
+  --checkpoint /path/to/compat-seed0.pt \
   --output runs/main/section_4_5/depth.json \
   --threshold 0.05 --n-test 500 --device cuda
 

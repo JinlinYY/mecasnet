@@ -18,7 +18,7 @@ class Config:
         default_factory=lambda: [0, 5, 10, 20, 30, 50, 70, 100, 150, 199]
     )
     reach_hops: int = 5            # k-hop BFS ball around shock for ShockReach mask
-    train_frac: float = 0.8        # Y8-H original: 4000/500/500 on 5000 events
+    train_frac: float = 0.8        # default 80/10/10 train/validation/test split
     val_frac: float = 0.1
     seed: int = 0
     # Cross-domain knob: when False, drop sector one-hot from x_v_static so
@@ -28,12 +28,8 @@ class Config:
     include_audit_metadata: bool = False
 
     # --- model ---
-    # PATH C theoretical bump: 18 sectors x ~5 dynamics modes ~= 90 latent
-    # sub-manifolds; Johnson-Lindenstrauss requires ~47-d to preserve them at
-    # eps=0.1.  d=32 was strictly under-capacity; d=48 was baseline.
-    # Tier 2: increase to 64 for cross-domain param_head capacity.
-    # (d=96 was over-parameterized on n=1k; d=64 is more balanced.)
-    d_hidden: int = 64             # per-node hidden width  (was 48)
+    # Per-node latent width used by the graph backbone and parameter heads.
+    d_hidden: int = 64
     deq_iters: int = 6             # fixed-point iterations (Jacobian-free backprop)
     deq_grad_iters: int = 1        # last K iterations with gradient
     alpha_init: float = 8.0        # smooth-min temperature init (learnable);
@@ -53,13 +49,9 @@ class Config:
     ablate_forward_only: bool = False
 
     # --- losses ---
-    # PATH C gradient-balance fix: empirically l_kf~0.04, l_peak*0.5~0.007,
-    # l_reach*0.5~0.135 -- reach BCE dominates 75% of total gradient, peak
-    # regression starves.  GradNorm (Chen ICML'18) prescribes balancing the
-    # effective per-task gradient norm.  New weights bring l_peak and l_reach
-    # to ~1:1.5 ratio, restoring regression signal.
+    # Composite-objective weights for trajectory, peak, and auxiliary tasks.
     w_data_keyframes: float = 1.0
-    w_data_peak: float = 2.0       # was 0.5  (4x boost on peak regression)
+    w_data_peak: float = 2.0
     w_mono: float = 0.1            # cap on dot{u}: recovery rate ≤ 1/T_r
     # Late-phase monotone penalty: penalise u(t+1) < u(t) on keyframes after
     # mono_late_threshold_day. Targets v4's day-100/150 regression where the
@@ -71,18 +63,15 @@ class Config:
     w_phys: float = 0.0            # PINN residual; >0 only if rhs has neural part
     focal_inert_weight: float = 0.1  # u≈1 nodes down-weighted in data loss
     focal_shock_weight: float = 5.0  # directly shocked nodes up-weighted
-    # NEW: reachability aux loss (BCE on is_reach = peak>reach_thresh)
-    # Helps model learn the 49% strict-zero structure as a classification subtask.
-    # PATH C: cut from 0.5 -> 0.15 to stop reach BCE from dominating optimization;
-    # reach AUC may drop ~0.92->~0.88, acceptable trade for restoring peak signal.
-    w_reach: float = 0.15          # was 0.5
+    # Reachability auxiliary loss: BCE on is_reach = peak > reach_thresh.
+    w_reach: float = 0.15
     reach_thresh: float = 0.001    # peak_loss > thresh ⇒ is_reach=1
     # Cascade-depth aux: predict per-node trough_day (which kf is argmin of u_kf).
     # Forces encoder to learn "when does this node bottom out" → improves per-node
     # identifiability at d30/d50 trough zone.  Active for cascade nodes (peak>0.05).
     w_trough_day: float = 0.05
     trough_day_peak_thresh: float = 0.05
-    # NEW: per-keyframe weight (boost trough days 5 / 30 / 50 per DATA_CHARACTERISTICS §4.2 bimodal)
+    # Per-keyframe weights emphasize the principal trough windows.
     # length must equal len(key_days)
     kf_weights: List[float] = field(
         default_factory=lambda: [1.0, 2.0, 1.5, 1.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0]
@@ -115,13 +104,13 @@ class Config:
     #   5-7: mode_oh        [SOFT  shock-sampling artifact]
     #   8-11: tier_oh       [SOFT  severity class]
     # event_scalars_mode:
-    #   "full"    - keep all 12 dims (original; possible leakage)
+    #   "full"    - keep all 12 dims (possible target-information leakage)
     #   "clean"   - zero out 0,1,5,6,7 (drop hard-leaky per-firm recovery
     #               + drop simulation-artifact mode); keep tier prior + tier_oh
     #   "minimal" - keep only mean observed Day-0 damage at index 2
     event_scalars_mode: str = "minimal"
 
-    # --- cross-domain augmentation (Phase 2 of LOO generalization plan) ---
+    # --- cross-domain augmentation ---
     # When > 0, randomly drop edges at training time with probability p (per
     # event, applied AFTER reach-subgraph extraction). Forces the GNN to
     # learn size/density-invariant aggregation by exposing it to topologies
@@ -144,7 +133,7 @@ class Config:
     #    does per-network standardization).
     dimensionless_inputs: bool = False
 
-    # --- mixed-training Henriet-boost (Tier 1.1 + 1.3) ---
+    # --- mixed-domain training weights ---
     # Per-domain loss multiplier applied at the event level inside total_loss.
     # Compensates for Henriet's smaller absolute error magnitude (peaks ~3% vs
     # Inoue ~20%) so gradient contributions equalize. {} → no boost.

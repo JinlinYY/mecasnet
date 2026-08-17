@@ -116,14 +116,13 @@ mecasnet-train \
 The best epoch is selected by validation `r2_pk_csc`; test values are evaluated
 only from the selected state.
 
-## 7. Archived checkpoint utilities
+## 7. Compatibility-profile utilities
 
-Several post-training scripts were written for the frozen Y8-H checkpoint and
-intentionally reconstruct `legacy-y8`. They are retained to audit the submitted
-analysis. A new `paper` checkpoint is not guaranteed to load into these scripts
-without adapting the builder.
+Several post-training scripts use the fixed `compat` architecture. A `paper`
+checkpoint is not guaranteed to load into these scripts unless the builder is
+updated to match its profile.
 
-Archive-specific entry points include:
+Compatibility-profile entry points include:
 
 - `mecasnet-thresholds` (`mecasnet.evaluation`);
 - `scripts/experiments/main/section_4_03_overall_performance/threshold_multiseed.py`;
@@ -140,12 +139,12 @@ not a reason to disable strict loading.
 
 ## 8. Threshold sensitivity and runtime
 
-For the archived checkpoint:
+For a compatibility-profile checkpoint:
 
 ```bash
 mecasnet-thresholds \
   --data-root /path/to/data \
-  --checkpoint /path/to/legacy-y8-seed0.pt \
+  --checkpoint /path/to/compat-seed0.pt \
   --output-dir runs/thresholds \
   --thresholds 0.01 0.02 0.03 0.05 0.075 0.10 0.15 0.20 \
   --benchmark-events 100 \
@@ -210,7 +209,7 @@ the exact calibration population.
 ```bash
 python scripts/experiments/main/section_4_11_uncertainty/input_uncertainty.py \
   --data-root /path/to/data \
-  --checkpoint /path/to/legacy-y8-seed0.pt \
+  --checkpoint /path/to/compat-seed0.pt \
   --output-dir runs/input-uncertainty \
   --n-test 500 --replicates 10 --bootstrap 2000 --device cuda
 ```
@@ -233,7 +232,7 @@ model-training uncertainty.
 ```bash
 python scripts/experiments/main/section_4_05_propagation_depth/propagation_depth.py \
   --data-root /path/to/data \
-  --checkpoint /path/to/legacy-y8-seed0.pt \
+  --checkpoint /path/to/compat-seed0.pt \
   --output runs/propagation-depth.json \
   --threshold 0.05 --n-test 500 --device cuda
 ```
@@ -262,7 +261,7 @@ Then evaluate a frozen checkpoint after excluding flagged test events:
 ```bash
 python scripts/experiments/main/section_4_04_split_and_topology/event_similarity.py \
   --data-root /path/to/data \
-  --checkpoint /path/to/legacy-y8-seed0.pt \
+  --checkpoint /path/to/compat-seed0.pt \
   --audit-csv runs/event-split-audit/event_pair_nearest_neighbors.csv \
   --output-dir runs/event-similarity-sensitivity \
   --threshold 0.05 --device cuda
@@ -276,12 +275,12 @@ at results is not equivalent to a preregistered alternative split.
 The topology tools fall into two categories:
 
 1. generic audit/search logic for node-removal blocks and retention constraints;
-2. manuscript reference workflows containing network-specific feature counts,
-   simulator interfaces, or archived checkpoint assumptions.
+2. network-specific workflows containing fixed feature counts, simulator
+   interfaces, or compatibility-profile checkpoint assumptions.
 
 `scripts/experiments/main/section_4_04_split_and_topology/evaluate_subgraph.py`,
-for example, expects the archived
-feature contract and a re-equilibrated induced-subgraph data directory. It
+for example, expects the compatibility-profile feature contract and a
+re-equilibrated induced-subgraph data directory. It
 should not be pointed at an arbitrary new network without reviewing and adapting
 those checks.
 

@@ -1,8 +1,7 @@
-"""Post-hoc reviewer experiments for the frozen Y8-H checkpoint.
+"""Cascade-threshold sensitivity and runtime evaluation utilities.
 
-This script does not retrain or alter model weights. It reports cascade-metric
-threshold sensitivity and separates data-to-device, inference, and training
-step costs on the exact Y8-H test split.
+The command evaluates fixed model weights and separates data transfer,
+inference, and optimization-step costs on a fixed test split.
 """
 from __future__ import annotations
 
@@ -19,7 +18,7 @@ from torch.utils.data import DataLoader
 
 from .config import Config
 from .data import CascadeEventDataset, StaticNetwork, collate_single, split_event_ids
-from .factory import LEGACY_Y8_PROFILE, build_mecasnet
+from .factory import COMPAT_PROFILE, build_mecasnet
 from .losses import total_loss
 
 
@@ -59,18 +58,18 @@ def to_device(batch: dict[str, Any], device: torch.device) -> dict[str, Any]:
             for key, value in batch.items()}
 
 
-def build_y8(cfg: Config, feature_count: int) -> torch.nn.Module:
-    """Build the archived Y8 checkpoint profile (not the paper default)."""
+def build_compat(cfg: Config, feature_count: int) -> torch.nn.Module:
+    """Build the fixed compatibility profile used by analysis checkpoints."""
     return build_mecasnet(
-        cfg, feature_count, profile=LEGACY_Y8_PROFILE, propagation_steps=4
+        cfg, feature_count, profile=COMPAT_PROFILE, propagation_steps=4
     )
 
 
-def load_y8(checkpoint: Path, cfg: Config, feature_count: int,
-            device: torch.device) -> torch.nn.Module:
+def load_compat(checkpoint: Path, cfg: Config, feature_count: int,
+                device: torch.device) -> torch.nn.Module:
     payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
     state_dict = payload["state_dict"] if "state_dict" in payload else payload
-    model = build_y8(cfg, feature_count)
+    model = build_compat(cfg, feature_count)
     missing, unexpected = model.load_state_dict(state_dict, strict=True)
     if missing or unexpected:
         raise RuntimeError(f"Checkpoint mismatch: missing={missing}, unexpected={unexpected}")
@@ -218,7 +217,7 @@ def main() -> None:
                         collate_fn=collate_single, pin_memory=device.type == "cuda")
     checkpoint_path = Path(args.checkpoint)
     checkpoint_payload = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-    model = load_y8(checkpoint_path, cfg, net.Fv, device)
+    model = load_compat(checkpoint_path, cfg, net.Fv, device)
 
     rows, end_to_end_seconds = collect_predictions(model, loader, device)
     sensitivity = [threshold_metrics(rows, threshold) for threshold in args.thresholds]
@@ -237,7 +236,7 @@ def main() -> None:
 
     report = {
         "protocol": {
-            "model": "Y8-H: MeCaSNet + triple_blend",
+            "model": "MeCaSNet compatibility profile",
             "data_root": args.data_root,
             "split": "seed=0, 80/10/10, first 500 test events",
             "event_scalars_mode": "minimal",
@@ -250,10 +249,10 @@ def main() -> None:
         "threshold_sensitivity": sensitivity,
         "computational_cost": cost,
     }
-    path = output_dir / "y8_reviewer_experiments.json"
+    path = output_dir / "threshold_sensitivity.json"
     path.write_text(json.dumps(report, indent=2, allow_nan=True) + "\n", encoding="utf-8")
 
-    print("=== Threshold Sensitivity (frozen Y8-H checkpoint) ===")
+    print("=== Threshold Sensitivity ===")
     print(f"{'threshold':>9} {'N_cascade':>10} {'% unshocked':>13} {'MAE':>8} "
           f"{'R2pk':>8} {'R2pk,csc':>10} {'R2kf,csc':>10} {'MAE,csc':>9}")
     for row in sensitivity:

@@ -1,7 +1,7 @@
 # Manuscript and SI mapping
 
-This document maps the scientific architecture to the public code. It also
-distinguishes the final manuscript profile from archived experimental variants.
+This document maps the scientific architecture to the public code and
+distinguishes the article profile from optional compatibility variants.
 
 | Manuscript component | Public implementation |
 |---|---|
@@ -63,7 +63,7 @@ Day-0 damage vector, mean Day-0 shock damage, and prescribed key dates. Recovery
 time, shock mode, severity tier, later simulator states, and target-derived
 quantities do not enter the forward predictor.
 
-The fixed-width event vector can represent legacy metadata, but the paper
+The fixed-width event vector can represent compatibility metadata, but the paper
 profile zeros every slot except the mean observed Day-0 damage at index 2. This
 masking happens before tensor construction. See
 [data_contract.md](data_contract.md#information-boundary) for the exact vector.
@@ -84,7 +84,7 @@ The paper builder additionally fixes:
 - node-specific recovery exponent `q_v in [0.5,2.0]`;
 - lower-envelope temperature `tau=0.02`;
 - initial three-stream fusion logits `[2,0,0]`;
-- no legacy Day-0 demand pullback, free residual, per-node seam temperature,
+- no optional Day-0 demand pullback, free residual, per-node seam temperature,
   MoE router, or graph-coupled recovery override.
 
 The late zero-initialized correction inherited from `KSGATv3Residual` is part of
@@ -109,8 +109,8 @@ different topology-perturbation question.
 
 The public architecture can be trained independently on any network exported to
 the documented schema. NEEQ reconstruction, protected firm records, and the
-private simulator-generation pipelines are outside this repository. The public
-boundary is explicit in `OPEN_SOURCE_SCOPE.md`.
+private simulator-generation pipelines are outside this repository. The data
+and software boundary is explicit in `DATA_AND_SOFTWARE_AVAILABILITY.md`.
 
 ### S3: objective and optimization
 
@@ -154,9 +154,9 @@ predictions and targets meet.
 - experiment-to-section navigation: `scripts/experiments/main/README.md` and
   `scripts/experiments/si/README.md`.
 
-Many of these scripts reproduce archived Y8-H analyses and therefore construct
-`legacy-y8`. This checkpoint lineage is stated explicitly in
-[evaluation_protocol.md](evaluation_protocol.md#7-archived-checkpoint-utilities).
+Some of these scripts construct the `compat` profile. The required checkpoint
+configuration is described in
+[evaluation_protocol.md](evaluation_protocol.md#7-compatibility-profile-utilities).
 
 ## Training-only versus inference-time quantities
 
@@ -171,7 +171,7 @@ Many of these scripts reproduce archived Y8-H analyses and therefore construct
 | True peak loss | no | yes | no |
 | Reach/cascade label | no | yes | no |
 | True trough date | no | yes | no |
-| Simulator recovery parameter | no | audit/legacy modes only | no |
+| Simulator recovery parameter | no | audit/compatibility modes only | no |
 | Shock sampling mode or severity tier | no | optional stratification only | not required |
 
 ## Outputs that require careful interpretation
@@ -185,12 +185,8 @@ Many of these scripts reproduce archived Y8-H analyses and therefore construct
 - reach and trough heads are auxiliary predictive tasks, not observed physical
   mechanisms.
 
-## Historical names
+## Public construction interface
 
-Internal class names such as `KSGATv3`, `KSGATv3EdgeState`, and `Y8` are retained
-for checkpoint compatibility. New users should construct the model through
-`mecasnet.build_mecasnet` and select an explicit named profile.
-
-When citing or discussing the public implementation, use `MeCaSNet` for the
-paper-profile factory output and reserve internal names for exact checkpoint
-lineage or ablation descriptions.
+Construct MeCaSNet through `mecasnet.build_mecasnet` and select an explicit
+named profile. Direct class names are implementation details and are not the
+stable public construction API.

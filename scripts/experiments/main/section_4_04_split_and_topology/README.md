@@ -12,7 +12,7 @@ python scripts/experiments/main/section_4_04_split_and_topology/event_split.py \
 
 python scripts/experiments/main/section_4_04_split_and_topology/event_similarity.py \
   --data-root /path/to/authorized/data \
-  --checkpoint /path/to/legacy-y8-seed0.pt \
+  --checkpoint /path/to/compat-seed0.pt \
   --audit-csv runs/main/section_4_4/event-split/event_pair_nearest_neighbors.csv \
   --output-dir runs/main/section_4_4/similarity-sensitivity
 ```

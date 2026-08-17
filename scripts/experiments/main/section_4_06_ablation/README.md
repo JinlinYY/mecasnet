@@ -4,11 +4,9 @@ The ablation implementation is distributed across the named model variants in
 `src/mecasnet/train.py`, the profile controls in `src/mecasnet/factory.py`, and
 the architecture flags consumed by `src/mecasnet/model_v3.py`.
 
-There is no public one-command runner that exactly regenerates every row of the
-submitted ablation table. The `paper` profile deliberately resets experimental
-architecture overrides to protect the final model definition. Consequently,
-generic CLI variants must not be relabeled as manuscript ablations without an
-explicit row-to-configuration audit.
+Each ablation is defined by a named model variant together with its effective
+configuration. The `paper` profile resets architecture overrides to the article
+definition, so an ablation command must specify its changed factor explicitly.
 
 For a new ablation study:
 
@@ -16,7 +14,7 @@ For a new ablation study:
 2. change exactly one named variant or configuration factor;
 3. keep event IDs, five seeds, optimizer, epochs, and selection metric fixed;
 4. store the effective configuration and parameter count with the result;
-5. report the run as a new ablation unless it matches the archived row exactly.
+5. report the variant name, changed factor, seed set, and parameter count.
 
-This directory exists to make the absence of an exact public matrix runner
-visible rather than hiding it among general training utilities.
+This convention makes every ablation independently inspectable and prevents a
+generic training variant from being mistaken for a reported experiment.

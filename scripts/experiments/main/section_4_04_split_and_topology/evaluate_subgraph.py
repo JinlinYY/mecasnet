@@ -10,12 +10,12 @@ from torch.utils.data import DataLoader
 
 from mecasnet.config import Config
 from mecasnet.data import CascadeEventDataset, StaticNetwork, collate_single
-from mecasnet.factory import LEGACY_Y8_PROFILE, build_mecasnet
+from mecasnet.factory import COMPAT_PROFILE, build_mecasnet
 from mecasnet.model_baselines_strong import DirGNNBaseline
 from mecasnet.runner import evaluate
 
 
-EXPECTED_Y8_PARAMS = 289512
+EXPECTED_COMPAT_PARAMS = 289512
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,12 +43,13 @@ def load_checkpoint(path: Path) -> dict[str, torch.Tensor]:
 def build_model(model_name: str, cfg: Config, fv: int) -> torch.nn.Module:
     if model_name == "mecasnet":
         model = build_mecasnet(
-            cfg, fv, profile=LEGACY_Y8_PROFILE, propagation_steps=4
+            cfg, fv, profile=COMPAT_PROFILE, propagation_steps=4
         )
         params = sum(parameter.numel() for parameter in model.parameters())
-        if params != EXPECTED_Y8_PARAMS:
+        if params != EXPECTED_COMPAT_PARAMS:
             raise RuntimeError(
-                f"Y8-H architecture mismatch: expected {EXPECTED_Y8_PARAMS}, got {params}"
+                "Compatibility-profile architecture mismatch: "
+                f"expected {EXPECTED_COMPAT_PARAMS}, got {params}"
             )
         return model
     return DirGNNBaseline(cfg, Fv=fv, n_layers=8, d_hidden=96)

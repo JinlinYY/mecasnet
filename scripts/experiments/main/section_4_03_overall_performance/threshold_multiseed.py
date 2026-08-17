@@ -25,7 +25,7 @@ except ImportError:
 
 from mecasnet.config import Config
 from mecasnet.data import CascadeEventDataset, StaticNetwork, collate_single, split_event_ids
-from mecasnet.factory import LEGACY_Y8_PROFILE, build_mecasnet
+from mecasnet.factory import COMPAT_PROFILE, build_mecasnet
 from mecasnet.model_v2 import PlainGATBaseline, PlainGCNBaseline, PlainMLPBaseline
 from mecasnet.model_baselines_strong import DirGNNBaseline, STGNNBaseline
 
@@ -115,7 +115,7 @@ def build_model(name: str, cfg: Config, feature_count: int) -> torch.nn.Module:
         return DirGNNBaseline(cfg, Fv=feature_count, n_layers=8, d_hidden=96)
     if name == "MeCaSNet":
         return build_mecasnet(
-            cfg, feature_count, profile=LEGACY_Y8_PROFILE, propagation_steps=4
+            cfg, feature_count, profile=COMPAT_PROFILE, propagation_steps=4
         )
     raise ValueError(f"Unknown model: {name}")
 

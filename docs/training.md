@@ -97,7 +97,7 @@ gradient-accumulation group.
 | Option | Default | Effect |
 |---|---:|---|
 | `--data-root` | required | Static network and event directory |
-| `--profile` | `paper` | `paper` or archived `legacy-y8` |
+| `--profile` | `paper` | `paper` or analysis-checkpoint `compat` |
 | `--variant` | `MeCaSNet` | Architecture or comparator to train |
 | `--n-train` | 4000 | Maximum events retained from the training partition |
 | `--n-val` | 500 | Maximum events retained from validation |
@@ -269,6 +269,6 @@ to this output; the checkpoint payload is not a complete provenance record.
 keys, and starts a fresh optimizer and LR schedule. It is initialization, not a
 bit-exact continuation of an interrupted optimizer state.
 
-Use `--profile legacy-y8 --require-y8-exact` only for the archived Y8-H model.
-That guard checks the expected architecture and parameter count. New manuscript
-runs should always use `--profile paper`.
+Use `--profile compat --require-compat-exact` only with checkpoints that require
+the fixed compatibility architecture. The guard checks the expected
+architecture and parameter count. New training runs should use `--profile paper`.

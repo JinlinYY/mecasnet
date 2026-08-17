@@ -9,9 +9,8 @@ cfg = Config()
 model = build_mecasnet(cfg, feature_count=Fv, profile="paper")
 ```
 
-Internal class names record the development history. For new experiments,
-`build_mecasnet` is the supported entry point and `paper` is the manuscript
-profile.
+`build_mecasnet` is the supported construction entry point. Use the `paper`
+profile for the architecture and information boundary described in the article.
 
 ## End-to-end view
 
@@ -58,7 +57,7 @@ edge_outshare[e] = A[e] / P_ini[edge_src[e]]   # supplier output share
 ```
 
 The paper profile uses `edge_a` in message passing. `edge_outshare` is retained
-for compatibility with an explicit legacy Day-0 demand-pullback option, which
+for compatibility with an optional Day-0 demand-pullback setting, which
 is disabled in the paper profile.
 
 ## 2. Node inputs and information boundary
@@ -226,7 +225,7 @@ Do not interpret it as 200 simulated daily values.
 
 ## 9. Named profiles
 
-| Setting | `paper` | `legacy-y8` |
+| Setting | `paper` | `compat` |
 |---|---:|---:|
 | Event scalars | minimal Day-0 descriptor | minimal Day-0 descriptor |
 | Day-0 demand pullback | off | off |
@@ -235,8 +234,8 @@ Do not interpret it as 200 simulated daily values.
 | Propagation blocks | 4 | 4 when built by the factory |
 | Three-stream fusion | on | on when built by the factory |
 
-`legacy-y8` exists to load archived checkpoints. It must not be used to label a
-new result as the final manuscript architecture.
+`compat` is the fixed `c=2` configuration used by the supplied post-training
+analysis scripts. New model training should use `paper`.
 
 ## 10. Source map
 

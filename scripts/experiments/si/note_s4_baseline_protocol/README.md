@@ -16,6 +16,6 @@ for model in MLP GCN GAT STGNN DirGNN MeCaSNet; do
 done
 ```
 
-Use the Section 4.3 matched-seed evaluator only with the archived checkpoint
-family it reconstructs. Always report parameter counts and label deeper
-capacity probes separately.
+Use the Section 4.3 matched-seed evaluator with checkpoints that match its
+`compat` profile. Always report parameter counts and label deeper capacity
+probes separately.

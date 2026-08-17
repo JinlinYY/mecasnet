@@ -1,6 +1,6 @@
 """Robustness analysis for uncertainty in reconstructed supply-network inputs.
 
-The simulator labels and frozen Y8-H checkpoint stay fixed.  Only deployment
+The simulator labels and model weights stay fixed. Only deployment
 inputs are perturbed: relative input shares, observed edges, and day-0 damage
 fractions.  This separates input-reconstruction robustness from simulator or
 retraining effects.
@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader
 from mecasnet.config import Config
 from mecasnet.data import CascadeEventDataset, StaticNetwork, collate_single, split_event_ids
 
-from mecasnet.evaluation import build_y8, load_y8, r2, to_device
+from mecasnet.evaluation import load_compat, r2, to_device
 
 
 KEY_DAYS = (0, 5, 10, 20, 30, 50, 70, 100, 150, 199)
@@ -298,7 +298,7 @@ def main() -> None:
     progress(f"Materialising {len(dataset)} test-event batches from disk.")
     raw_batches = list(loader)
     progress(f"Loaded {len(raw_batches)} batches; loading frozen checkpoint.")
-    model = load_y8(Path(args.checkpoint), cfg, net.Fv, device)
+    model = load_compat(Path(args.checkpoint), cfg, net.Fv, device)
     progress("Frozen checkpoint loaded; evaluating clean baseline.")
 
     scenarios: dict[str, dict[str, float]] = {
@@ -324,7 +324,7 @@ def main() -> None:
     progress(f"Baseline complete: R2_peak,cascade={baseline_metrics['r2_peak_cascade']:.4f}.")
     report: dict[str, Any] = {
         "protocol": {
-            "model": "Frozen Y8-H: MeCaSNet + triple_blend",
+            "model": "MeCaSNet compatibility profile",
             "split": "seed=0, first test events only; identical events for every scenario",
             "n_test": len(raw_batches),
             "event_scalars_mode": "minimal",
@@ -387,7 +387,7 @@ def main() -> None:
                  f"{metric_summary['r2_peak_cascade']['mean']:.4f} "
                  f"(baseline {baseline_metrics['r2_peak_cascade']:.4f}).")
 
-    path = output_dir / "y8_input_uncertainty.json"
+    path = output_dir / "input_uncertainty.json"
     path.write_text(json.dumps(report, indent=2, allow_nan=True) + "\n", encoding="utf-8")
     progress(f"Saved: {path}")
 

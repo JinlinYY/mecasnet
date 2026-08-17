@@ -1,4 +1,4 @@
-"""Evaluate a frozen Y8-H checkpoint after excluding similar training events.
+"""Evaluate fixed compatibility-profile weights after excluding similar events.
 
 This is a post-hoc sensitivity analysis only: it never trains, fine-tunes, or
 selects a checkpoint. Event subsets are determined solely from the precomputed
@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 
 from mecasnet.config import Config
 from mecasnet.data import CascadeEventDataset, StaticNetwork, collate_single, split_event_ids
-from mecasnet.evaluation import collect_predictions, load_y8, threshold_metrics
+from mecasnet.evaluation import collect_predictions, load_compat, threshold_metrics
 
 
 def parse_args() -> argparse.Namespace:
@@ -135,7 +135,7 @@ def main() -> None:
         raise ValueError("A requested similarity subset is empty.")
 
     net = StaticNetwork(cfg)
-    model = load_y8(Path(args.checkpoint), cfg, net.Fv, device)
+    model = load_compat(Path(args.checkpoint), cfg, net.Fv, device)
     results: dict[str, dict[str, Any]] = {}
     for name, event_ids in subsets.items():
         print(f"[evaluate] {name}: {len(event_ids)} events", flush=True)
@@ -157,7 +157,7 @@ def main() -> None:
 
     report = {
         "protocol": {
-            "model": "Frozen Y8-H: MeCaSNet + triple_blend",
+            "model": "MeCaSNet compatibility profile",
             "checkpoint": str(Path(args.checkpoint)),
             "event_scalars_mode": "minimal",
             "threshold": args.threshold,
@@ -169,10 +169,10 @@ def main() -> None:
         "audit_csv": str(audit_path),
         "subsets": results,
     }
-    path = output_dir / "y8_event_similarity_sensitivity.json"
+    path = output_dir / "event_similarity_sensitivity.json"
     path.write_text(json.dumps(report, indent=2, allow_nan=True) + "\n", encoding="utf-8")
 
-    print("=== Frozen Y8-H Event-Similarity Sensitivity ===")
+    print("=== Event-Similarity Sensitivity ===")
     print(f"{'subset':<36} {'events':>6} {'R2pk':>8} {'R2pk,csc':>10} {'MAE,csc':>9} {'R2kf,csc':>10}")
     for name, result in results.items():
         print(f"{name:<36} {result['event_count']:6d} {result['r2_pk']:8.3f} "

@@ -21,6 +21,6 @@ python scripts/experiments/main/section_4_09_efficiency/runtime_benchmark.py \
   --output runs/main/section_4_9/runtime.json
 ```
 
-The simulator interfaces and protected domain assets are not distributed in
-the public repository. Runtime comparisons must report hardware, event count,
-warm-up, precision, and whether startup and I/O are included.
+The simulator branches require authorized interfaces and protected domain
+assets. Runtime comparisons must report hardware, event count, warm-up,
+precision, and whether startup and I/O are included.

@@ -1,4 +1,4 @@
-r"""Evaluate frozen Y8-H predictions by cascade distance from shocked firms."""
+r"""Evaluate predictions by cascade distance from directly shocked firms."""
 from __future__ import annotations
 
 import argparse
@@ -20,7 +20,7 @@ from mecasnet.data import (
     collate_single,
     split_event_ids,
 )
-from mecasnet.evaluation import KEY_DAYS, load_y8, r2, to_device
+from mecasnet.evaluation import KEY_DAYS, load_compat, r2, to_device
 
 
 def parse_args() -> argparse.Namespace:
@@ -123,7 +123,7 @@ def main() -> None:
         collate_fn=collate_single,
         pin_memory=device.type == "cuda",
     )
-    model = load_y8(Path(args.checkpoint), cfg, network.Fv, device).eval()
+    model = load_compat(Path(args.checkpoint), cfg, network.Fv, device).eval()
 
     peak_predictions: list[np.ndarray] = []
     peak_targets: list[np.ndarray] = []
@@ -188,7 +188,7 @@ def main() -> None:
     )
     report = {
         "protocol": {
-            "model": "Frozen Y8-H: MeCaSNet + triple_blend",
+            "model": "MeCaSNet compatibility profile",
             "data_root": args.data_root,
             "checkpoint": args.checkpoint,
             "split": f"seed=0 test split; first {len(test_ids)} events",

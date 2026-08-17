@@ -28,20 +28,19 @@ def repository_root() -> Path:
 
 
 ROOT = repository_root()
-RELEASE = ROOT
 FIX_DIR = ROOT / "fix"
-for path in (ROOT, RELEASE, FIX_DIR):
+for path in (ROOT, FIX_DIR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
 from mecasnet.config import Config
 from mecasnet.data import CascadeEventDataset, StaticNetwork, collate_single
-from mecasnet.factory import LEGACY_Y8_PROFILE, build_mecasnet
+from mecasnet.factory import COMPAT_PROFILE, build_mecasnet
 
 
 DOMAINS = {
     "henriet": {
-        "checkpoint": ROOT / "checkpoints/legacy_y8_henriet_seed0.pt",
+        "checkpoint": ROOT / "checkpoints/compat_henriet_seed0.pt",
         "data": ROOT / "data/reference/henriet",
         "simulator_inputs": [
             ROOT / "private_backend/henriet/nodes_attr.csv",
@@ -246,7 +245,7 @@ def load_surrogate(domain: str, device: torch.device):
     checkpoint = torch.load(spec["checkpoint"], map_location="cpu", weights_only=False)
     state_dict = checkpoint.get("state_dict", checkpoint)
     model = build_mecasnet(
-        cfg, net.Fv, profile=LEGACY_Y8_PROFILE, propagation_steps=4
+        cfg, net.Fv, profile=COMPAT_PROFILE, propagation_steps=4
     )
     model.load_state_dict(state_dict, strict=True)
     model = model.to(device).eval()

@@ -1,4 +1,4 @@
-"""Measure learned recovery parameters from the frozen Y8-H checkpoint.
+"""Measure learned recovery parameters from fixed model weights.
 
 Captures the trimodal decoder's raw 13-output param_head and applies the exact
 forward mappings used by KSGATv3. Reports all-node and severity-stratified
@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 from mecasnet.config import Config
 from mecasnet.data import CascadeEventDataset, StaticNetwork, collate_single, split_event_ids
 
-from mecasnet.evaluation import load_y8, to_device
+from mecasnet.evaluation import load_compat, to_device
 
 
 def progress(message: str) -> None:
@@ -91,7 +91,7 @@ def main() -> None:
     loader = DataLoader(dataset, batch_size=1, shuffle=False,
                         num_workers=args.num_workers, collate_fn=collate_single,
                         pin_memory=device.type == "cuda")
-    model = load_y8(Path(args.checkpoint), cfg, net.Fv, device)
+    model = load_compat(Path(args.checkpoint), cfg, net.Fv, device)
     if getattr(model, "decoder_mode", None) != "param3":
         raise RuntimeError(f"Expected trimodal decoder_mode='param3', got {model.decoder_mode!r}.")
 
@@ -223,7 +223,7 @@ def main() -> None:
         }
     report = {
         "protocol": {
-            "model": "Frozen Y8-H MeCaSNet + triple_blend",
+            "model": "MeCaSNet compatibility profile",
             "checkpoint": str(Path(args.checkpoint)),
             "data_root": str(Path(args.data_root)),
             "split": "seed=0, first 500 test events",
@@ -245,7 +245,7 @@ def main() -> None:
         "paired_recovery_diagnostics": paired_diagnostics,
         "active_component_statistics": active_component_statistics,
     }
-    path = output_dir / "y8_recovery_parameters.json"
+    path = output_dir / "recovery_parameters.json"
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     progress(f"Saved: {path}")
     for parameter, stats in statistics["all"].items():

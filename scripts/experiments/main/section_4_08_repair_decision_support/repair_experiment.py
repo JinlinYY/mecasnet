@@ -2,8 +2,8 @@
 
 The experiment uses MeCaSNet only to rank hypothetical repair actions. Every
 reported repair outcome is independently verified by the full ARIO/Henriet
-simulator. This reference workflow requires non-public simulator and FINDER
-interfaces; place an authorized backend on PYTHONPATH before running it.
+simulator. The analysis requires authorized simulator and FINDER interfaces on
+``PYTHONPATH``.
 """
 from __future__ import annotations
 
@@ -36,13 +36,13 @@ def repository_root() -> Path:
 
 
 ROOT = repository_root()
-ARCHIVE = ROOT
+PROJECT_ROOT = ROOT
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from mecasnet.config import Config  # noqa: E402
 from mecasnet.data import StaticNetwork  # noqa: E402
-from mecasnet.evaluation import load_y8, to_device  # noqa: E402
+from mecasnet.evaluation import load_compat, to_device  # noqa: E402
 
 
 KEY_DAYS = (0, 5, 10, 20, 30, 50, 70, 100, 150, 199)
@@ -67,7 +67,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         default=str(
-            ARCHIVE / "runs" / "reference" / "surrogate_repair_comparison.json"
+            PROJECT_ROOT / "runs" / "repair" / "surrogate_repair_comparison.json"
         ),
     )
     parser.add_argument("--seeds", type=int, nargs="+", default=[7, 17, 27, 37, 47])
@@ -303,8 +303,8 @@ def load_finder_agent(
         from fix.finder_policy import AUX_DIM, FinderAgent
     except ImportError as exc:
         raise RuntimeError(
-            "The FINDER backend is not included in the public release. "
-            "Install the authorized backend before enabling FINDER."
+            "The FINDER backend is an external dependency. "
+            "Install an authorized backend before enabling FINDER."
         ) from exc
     agent = FinderAgent(
         node_in=state.node_feat.shape[1],
@@ -341,7 +341,7 @@ def finder_simulator_feedback(
         "selected": selected,
         "decision_seconds": time.perf_counter() - started,
         "candidate_evaluations": len(selected),
-        "note": "Original FINDER loop: one full simulator rerun updates the state after each action.",
+        "note": "FINDER policy loop: one full simulator rerun updates the state after each action.",
     }
 
 
@@ -577,8 +577,8 @@ def main() -> None:
         from fix.sim_env import HenrietEnv
     except ImportError as exc:
         raise RuntimeError(
-            "The ARIO/Henriet simulator is not included in the public release. "
-            "Install the authorized backend before running this reference workflow."
+            "The ARIO/Henriet simulator is an external dependency. "
+            "Install an authorized backend before running this analysis."
         ) from exc
     if not 0 < args.alpha <= 1:
         raise ValueError("--alpha must be in (0, 1].")
@@ -599,7 +599,7 @@ def main() -> None:
     cfg.deq_grad_iters = 1
     cfg.event_scalars_mode = "minimal"
     net = StaticNetwork(cfg)
-    model = load_y8(checkpoint, cfg, net.Fv, device).eval()
+    model = load_compat(checkpoint, cfg, net.Fv, device).eval()
     static_meta = load_static_meta(static_path)
 
     report: dict[str, Any] = {

@@ -14,4 +14,4 @@ The folders follow Supplementary Notes S1–S7.
 
 Several SI notes specify datasets, equations, or protocol constraints rather
 than a separate executable experiment. Their README files point to the exact
-package implementation and state which source assets are not distributed.
+package implementation and required data or interfaces.

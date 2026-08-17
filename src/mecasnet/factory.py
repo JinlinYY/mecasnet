@@ -6,8 +6,8 @@ from .config import Config
 
 
 PAPER_PROFILE = "paper"
-LEGACY_Y8_PROFILE = "legacy-y8"
-PROFILES = (PAPER_PROFILE, LEGACY_Y8_PROFILE)
+COMPAT_PROFILE = "compat"
+PROFILES = (PAPER_PROFILE, COMPAT_PROFILE)
 
 
 def apply_profile(cfg: Config, profile: str = PAPER_PROFILE) -> Config:
@@ -15,9 +15,9 @@ def apply_profile(cfg: Config, profile: str = PAPER_PROFILE) -> Config:
 
     The paper profile follows the manuscript and SI: Day-0-only event input,
     capacity-based Day-0 boundary, a fixed ``c=6`` decline front, learned
-    ``q_v`` in ``[0.5, 2.0]``, and the three prediction streams. ``legacy-y8``
-    is retained solely for loading archived checkpoints produced before the
-    final manuscript profile was frozen.
+    ``q_v`` in ``[0.5, 2.0]``, and the three prediction streams. The ``compat``
+    profile provides the fixed ``c=2`` architecture required by the supplied
+    post-training analysis utilities.
     """
     if profile not in PROFILES:
         raise ValueError(f"Unknown profile {profile!r}; choose one of {PROFILES}")

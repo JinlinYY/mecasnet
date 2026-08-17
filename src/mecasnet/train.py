@@ -3,8 +3,8 @@
 The driver performs per-epoch validation, selects the best checkpoint using
 validation cascade R-squared, evaluates the selected model on the test split,
 and writes aggregate and per-seed metrics. The default `paper` profile uses
-only information available at Day 0 and matches the final manuscript
-architecture; `legacy-y8` exists only for archived checkpoints.
+only information available at Day 0 and implements the documented architecture.
+The `compat` profile supports the fixed analysis-checkpoint architecture.
 
 Example:
   mecasnet-train --data-root /path/to/chemical-cascade-data
@@ -31,7 +31,7 @@ from .model_v2 import PlainMLPBaseline, PlainGATBaseline, PlainGCNBaseline
 from .model_baselines_strong import (
     DirGNNBaseline, STGNNBaseline, PhysicsAnalyticalBaseline,
 )
-from .factory import LEGACY_Y8_PROFILE, PAPER_PROFILE, PROFILES, apply_profile
+from .factory import COMPAT_PROFILE, PAPER_PROFILE, PROFILES, apply_profile
 from .runner import (
     train_with_val, evaluate, agg_seeds,
 )
@@ -52,7 +52,7 @@ def _eval_on_split(state_dict, build_fn, ids, cfg, net, device):
 
 
 def main():
-    # ------- A800 free speedups (TF32 + cudnn.benchmark) -------
+    # ------- optional CUDA performance settings -------
     # Henriet graph is fixed shape (V=429, E=877, K=10) so cudnn.benchmark
     # is safe. TF32 on Ampere typically gives 1.2-1.4x on matmul-bound
     # workloads (GAT projections, decoder heads). No semantic change.
@@ -97,7 +97,7 @@ def main():
     ap.add_argument("--lr-schedule", "--lr_schedule", dest="lr_schedule",
                     type=str, default="cosine",
                     choices=["const", "cosine"],
-                    help="'const' = fixed cfg.lr (legacy); 'cosine' = linear "
+                    help="'const' = fixed cfg.lr; 'cosine' = linear "
                          "warmup then cosine decay (default)")
     ap.add_argument("--warmup-epochs", "--warmup_epochs", dest="warmup_epochs",
                     type=int, default=3,
@@ -136,10 +136,10 @@ def main():
                     help="external held-out pool used only after validation has selected "
                          "the best checkpoint; requires --split_manifest with "
                          "strict_test_ids")
-    ap.add_argument("--require-y8-exact", "--require_y8_exact",
-                    dest="require_y8_exact", action="store_true",
-                    help="fail before training unless the archived Y8-H triple-blend "
-                        "architecture and 289,512-parameter profile are active")
+    ap.add_argument("--require-compat-exact", "--require_compat_exact",
+                    dest="require_compat_exact", action="store_true",
+                    help="fail before training unless the 289,512-parameter "
+                         "compatibility architecture is active")
     args = ap.parse_args()
     if args.profile == PAPER_PROFILE and args.event_scalars_mode != "minimal":
         ap.error("--profile paper requires --event-scalars-mode minimal")
@@ -154,45 +154,28 @@ def main():
     cfg.event_scalars_mode = args.event_scalars_mode
     print(f"[init] event_scalars_mode = {cfg.event_scalars_mode}")
 
-    # Flat-top decline front (2026-06-14): MECAS_DECLINE_P sets the collapse
-    # exponent on the physics decoder. 2.0 = historical Gaussian (no change);
-    # >2 (e.g. 6) = super-Gaussian plateau-then-steep onset matching the
-    # inventory-depletion front of the Henriet/Inoue simulators, to fix the
-    # early-keyframe (d5/d10) over-early-decline. Applies to all param decoders.
+    # Collapse exponent for parametric decoders: 2 gives a Gaussian front;
+    # larger values give a plateau followed by a steeper decline.
     import os as _os_dp
     cfg.decline_p = float(_os_dp.environ.get("MECAS_DECLINE_P", str(cfg.decline_p)))
     if cfg.decline_p != 2.0:
         print(f"[init] MECAS_DECLINE_P = {cfg.decline_p}  (flat-top super-Gaussian decline front)")
 
-    # Recovery-branch family (2026-06-14): MECAS_RECOVERY_P sets the rebound
-    # exponent on the physics decoder. 1.0 = historical single-exp (no change);
-    # >1 (e.g. 2) = Erlang/Gamma-k survival fn = lagged concave refill matching
-    # the inventory-refill convolution of cascade nodes in both simulators, to
-    # fix the too-fast mid-recovery (d30/d50). Applies to all param decoders.
+    # Recovery-family exponent: 1 gives a single exponential; values above 1
+    # use an Erlang/Gamma survival function for lagged inventory refill.
     cfg.recovery_p = float(_os_dp.environ.get("MECAS_RECOVERY_P", str(cfg.recovery_p)))
     if cfg.recovery_p != 1.0:
         print(f"[init] MECAS_RECOVERY_P = {cfg.recovery_p}  (Erlang/Gamma lagged-refill recovery branch)")
 
-    # Plan A (2026-06-15): per-node recovery gate. MECAS_RECOVERY_GATE=1 makes the
-    # backbone predict g_v in [0,1] per node that mixes DIRECT single-exp (g=1)
-    # and CASCADE Erlang-2 (g=0) recovery, overriding the global recovery_p.
-    # Resolves the mixed-distribution wash (d30/d50 up but d70 collapse) that a
-    # single global recovery_p caused. Adds (d+1) params. Applies to all param
-    # decoders that go through the base KSGATv3.forward (incl. V3DE_G3_BD).
+    # Optional per-node gate between single-exponential and Erlang-2 recovery.
     cfg.recovery_gate = _os_dp.environ.get(
         "MECAS_RECOVERY_GATE", "1" if cfg.recovery_gate else "0"
     ) == "1"
     if cfg.recovery_gate:
         print("[init] MECAS_RECOVERY_GATE=1  (per-node direct/cascade recovery mix gate)")
 
-    # PhysRecover (2026-06-15): MECAS_PHYSRECOVER=1 replaces the closed-form
-    # recovery branch with an on-graph inventory relaxation that caps each
-    # node's recovery by its upstream suppliers' current production
-    # (u_v += (1-e^{-kappa_v dt})(min(own_recovery, supply_v) - u_v)). Targets
-    # the d70+ recovery-seam collapse that a per-node closed form cannot express
-    # (the graph+time coupling of P_act=min(P_cap,Leontief(S),D) in both sims).
-    # SOLE recovery path, ~ (d+1) params (kappa head). Applies to all param
-    # decoders through the base KSGATv3.forward (incl. V3DE_G3_BD / edge-state+free_res).
+    # Optional graph-coupled inventory relaxation. Supplier production bounds
+    # each node's recovery target through a learned per-node rate.
     cfg.physrecover = _os_dp.environ.get(
         "MECAS_PHYSRECOVER", "1" if cfg.physrecover else "0"
     ) == "1"
@@ -202,13 +185,8 @@ def main():
         print(f"[init] MECAS_PHYSRECOVER=1  (graph-coupled recovery integrator, "
               f"kappa in [{cfg.physrec_kappa_min},{cfg.physrec_kappa_max}]/day)")
 
-    # Recovery self-capacity (2026-06-15): MECAS_RECOVERY_Q=1 makes the backbone
-    # predict a per-node recovery-sharpness q_v in [MECAS_RECOVERY_QMIN,
-    # MECAS_RECOVERY_QMAX] => recovery shape r(z)=exp(-z^q). q<1 speeds recovery,
-    # q>1 lags it; q=1 (init) is the exact single-exp. Targets the d70 recovery
-    # LAG the root-cause diagnostic localized to the decoder's own-state recovery
-    # rigidity (NOT graph coupling). Adds (d+1) params. Applies to all param
-    # decoders through the base KSGATv3.forward (incl. V3DE_G3_BD / edge-state+free_res).
+    # Optional per-node recovery sharpness q_v in [QMIN, QMAX], with
+    # r(z)=exp(-z^q). Values below/above 1 accelerate/delay the recovery front.
     cfg.recovery_q = _os_dp.environ.get(
         "MECAS_RECOVERY_Q", "1" if cfg.recovery_q else "0"
     ) == "1"
@@ -218,41 +196,21 @@ def main():
         print(f"[init] MECAS_RECOVERY_Q=1  (per-node recovery sharpness q in "
               f"[{cfg.recovery_q_min},{cfg.recovery_q_max}], r(z)=exp(-z^q))")
 
-    # Wider free-residual corrector (2026-06-17): MECAS_RESIDUAL_WIDE=1 swaps the
-    # flat Linear(d,K) free-residual head for a d->2d->K GELU MLP. Targets the
-    # d50/d70 seam deficit the R2 decomposition attributed ~50% to calibration
-    # (the linear head cannot express the localized per-node correction the
-    # param3 G1/G2/G3 seams need). Requires MECAS_FREE_RESIDUAL=1. Adds ~2d*d+2d*K
-    # params; last layer zero-init so it still boots at the exact physics traj.
+    # Optional d->2d->K GELU residual head. Its final layer is zero-initialized,
+    # so the starting prediction equals the analytical trajectory.
     cfg.residual_wide = _os_dp.environ.get("MECAS_RESIDUAL_WIDE", "0") == "1"
     if cfg.residual_wide:
         print("[init] MECAS_RESIDUAL_WIDE=1  (free-residual head d->2d->K GELU MLP)")
 
-    # Per-node seam temperature (2026-06-17): MECAS_SEAM_TAU=1 makes the trimodal
-    # decoder predict a per-node softmin temperature τ_v = softplus(W·h+b)+1e-3
-    # instead of the global scalar τ. Targets the d50/d70 seam r-drop (node
-    # ranking loss) the R2 decomposition localized to the param3 G1/G2 & G2/G3
-    # crossovers: the global hard min clamps adjacent nodes toward the crossing
-    # value, amplifying μ/σ errors into rank noise. τ_v lets cascade-buffered
-    # nodes blend gracefully (rank preserved) while shocked nodes stay sharp.
-    # The ONLY seam fix that keeps a pure closed-form physics decoder. Adds
-    # (d+1) params; bias-init so τ_v=0.02 at start (zero behavioural change).
+    # Optional per-node softmin temperature for the trimodal decoder:
+    # tau_v = softplus(W h + b) + 1e-3.
     cfg.seam_tau_pernode = _os_dp.environ.get("MECAS_SEAM_TAU", "0") == "1"
     if cfg.seam_tau_pernode:
         print("[init] MECAS_SEAM_TAU=1  (per-node trimodal softmin temperature τ_v)")
 
-    # d70 G2-collapse fix (2026-06-17). The d70 root-cause diagnostic + 5 failed
-    # warm-start arms proved d70 collapses because the mid Gaussian G2 is
-    # gradient-starved: under near-hard-min softmin (tau~0.02) it is never the
-    # deepest curve on any day, so T_r2 pins to its floor and d70 R2 falls
-    # 0.63 -> 0.015. These two CONSTRUCTION-LEVEL gates (from-scratch only) attack
-    # the two halves of that root cause:
-    #   MECAS_G2_REPOS=1     -> narrow mu2 [20,90]->[MECAS_P3_MU2_OFF, +SCALE] (def
-    #                          45..85) so G2's trough lands in the d70 window and
-    #                          can WIN the softmin there (positioning).
-    #   MECAS_SEAM_TAU_INITB -> seam_tau head init bias (def -3.954 = tau 0.02).
-    #                          Raise (e.g. -2.0 => tau~0.12) so the softmin passes
-    #                          gradient to G2 from the start (anti-starvation).
+    # Optional G2 location range and seam-temperature initialization. These
+    # controls define which window the middle component represents and how
+    # smoothly gradients are shared near component intersections.
     cfg.p3_g2_repos = _os_dp.environ.get("MECAS_G2_REPOS", "0") == "1"
     if cfg.p3_g2_repos:
         cfg.p3_mu2_off_override = float(_os_dp.environ.get("MECAS_P3_MU2_OFF", "45"))
@@ -265,32 +223,21 @@ def main():
         _tau0 = _math_tau.log1p(_math_tau.exp(cfg.seam_tau_init_bias)) + 1e-3
         print(f"[init] MECAS_SEAM_TAU_INITB={cfg.seam_tau_init_bias}  (seam tau init = {_tau0:.3f}, vs default 0.02)")
 
-    # Hierarchical dual seam temperature (2026-06-17): MECAS_SEAM_TAU2=1 adds a
-    # SECOND per-node softmin temperature so the trimodal composition becomes a
-    # two-level nested softmin (tau1_v owns the d50 G1/G2 seam, tau2_v the d70
-    # G2/G3 seam INDEPENDENTLY). Fixes the single-tau B failure mode (d50->0.73
-    # but d70->-0.30: one tau cannot serve both seams). Implies MECAS_SEAM_TAU=1.
+    # Optional nested softmin with separate per-node temperatures for the G1/G2
+    # and G2/G3 component intersections. This implies MECAS_SEAM_TAU=1.
     cfg.seam_tau_dual = _os_dp.environ.get("MECAS_SEAM_TAU2", "0") == "1"
     if cfg.seam_tau_dual:
         cfg.seam_tau_pernode = True
         print("[init] MECAS_SEAM_TAU2=1  (dual per-node seam temperatures τ1_v/τ2_v, nested softmin)")
 
-    # Time-masked PROTECTED residual (2026-06-17): MECAS_RESID_TAIL_MASK=1 ->
-    # cfg.resid_tail_mask. Masks the free residual to the decline/peak window
-    # (days<=MECAS_RESID_MASK_DAY, default 50) and forces it to ZERO on the
-    # recovery tail (d70+). The residual trade-off ceiling showed the free
-    # residual helps decline/peak (d5..d30, peak) but overfits the recovery tail
-    # (clean d199 0.155->-0.258), and in real training this tail overfit
-    # transfers to d70 (-0.30). Masking keeps the peak/bulk gain, restores the
-    # tail, and structurally prevents the d70 collapse. Requires MECAS_FREE_RESIDUAL=1.
+    # Optional time mask for the free residual. The correction is applied only
+    # through MECAS_RESID_MASK_DAY and is zero on the recovery tail.
     cfg.resid_tail_mask = _os_dp.environ.get("MECAS_RESID_TAIL_MASK", "0") == "1"
     cfg.resid_mask_day = float(_os_dp.environ.get("MECAS_RESID_MASK_DAY", "50"))
     if cfg.resid_tail_mask:
         print(f"[init] MECAS_RESID_TAIL_MASK=1  (free residual active only on days<={cfg.resid_mask_day:.0f}, zero on recovery tail)")
 
-    # ----- Henriet ablation toggles (2026-06-16) -----------------------------
-    # Clean single-component removals for the flagship ablation table. All three
-    # default OFF so every existing run is byte-for-byte unchanged.
+    # ----- single-component ablation toggles ---------------------------------
     #   MECAS_ABLATE_UNCOND=1       -> cfg.ablate_uncond: strip Day-0 shock identity
     #     (shock_mask & delta0) from the node-encoder input (unconditioned
     #     representation). u0 physical IC + FiLM shock_frac kept.
@@ -312,9 +259,7 @@ def main():
         print("[init] MECAS_NO_REACH=1  (regression-only: reachability BCE aux disabled, w_reach=0)")
 
     if args.kf_trans_weight != 1.0:
-        # multiply the EXISTING per-keyframe weights (NOT reset to 1.0) so the
-        # established d5/d30/d50 trough weighting is preserved; only the two
-        # transition frames d10/d70 get the extra boost.
+        # Preserve base weights and multiply only the d10/d70 transition frames.
         kfw = list(cfg.kf_weights)
         for i, d in enumerate(cfg.key_days):
             if d in (10, 70):
@@ -322,14 +267,7 @@ def main():
         cfg.kf_weights = kfw
         print(f"[init] kf_weights = {kfw}  (transition d10/d70 x{args.kf_trans_weight})")
 
-    # Seam loss reweighting (2026-06-17): MECAS_SEAM_KFW=<w> multiplies the d50 &
-    # d70 keyframe loss weights by w. The R2 decomposition localized the only
-    # flagship deficit vs the edge-state baseline to the param3 G1/G2 (d50) and G2/G3
-    # (d70) seams; this is the LOSS-side lever (orthogonal to the wide-residual
-    # and triple-blend architecture fixes): force the optimizer to allocate
-    # capacity to the two under-fit seam frames instead of letting the early
-    # frames dominate the gradient. Cheapest possible test of whether the seam
-    # gap is an optimization-allocation issue vs a structural ceiling.
+    # Optional joint multiplier for the d50 and d70 seam-frame losses.
     _seam_w = float(_os_dp.environ.get("MECAS_SEAM_KFW", "1.0"))
     if _seam_w != 1.0:
         kfw = list(cfg.kf_weights)
@@ -339,19 +277,7 @@ def main():
         cfg.kf_weights = kfw
         print(f"[init] MECAS_SEAM_KFW={_seam_w}  kf_weights = {kfw}  (seam d50/d70 x{_seam_w})")
 
-    # d70-only reweighting (2026-06-17): MECAS_D70_KFW=<w> multiplies ONLY the d70
-    # keyframe loss weight by w. Source audit confirmed the root cause of the
-    # kf̄ plateau: the default kf_weights have d5/d30/d50 boosted to 2.0 but the
-    # sole recovery seam frame d70 left at 1.0 (HALF of d50). Combined with the
-    # masked residual (which zeroes the residual path for day>50), d70 is driven
-    # purely by the physics G2/G3 form yet receives half the per-frame gradient
-    # of d50 -> systematically under-trained, well below its own ceiling (~0.63
-    # established by the frozen-h fresh-head probe). Unlike MECAS_SEAM_KFW this
-    # does NOT touch d50 (already at 2.0). This is the targeted lever: lift d70's
-    # gradient share so the optimizer drives the physics form toward its ceiling.
-    # NOTE (honest): this nudges d70 toward ~0.63, it does NOT surpass the edge-state
-    # baseline (0.646) or the d70 ceiling -- the masked-residual design keeps
-    # aggregate kf̄ roughly flat (seam is only 2/10 frames).
+    # Optional d70-only keyframe-loss multiplier.
     _d70_w = float(_os_dp.environ.get("MECAS_D70_KFW", "1.0"))
     if _d70_w != 1.0:
         kfw = list(cfg.kf_weights)
@@ -361,9 +287,7 @@ def main():
         cfg.kf_weights = kfw
         print(f"[init] MECAS_D70_KFW={_d70_w}  kf_weights = {kfw}  (d70 x{_d70_w})")
 
-    # Experimental environment variables remain available to archived/custom
-    # variants, but the named manuscript profile has an immutable information
-    # and architecture boundary.
+    # The paper profile has an immutable information and architecture boundary.
     if args.profile == PAPER_PROFILE:
         apply_profile(cfg, PAPER_PROFILE)
         print("[init] paper profile locked (Day-0 inputs and final architecture)")
@@ -444,8 +368,8 @@ def main():
 
     Fv = net.Fv
 
-    # Variant builder —V3DE_G3 default (SOTA per round-7 ablation).
-    # V3DE_G1: G1 wide-range bimodal init.  V3DE: original (no preset).
+    # Named architecture variants. V3DE_G1 uses a wide-range bimodal
+    # initialization; V3DE uses the default preset.
     # Baselines (MLP/GAT/GCN) use identical encoder + heads, only the
     # spatial aggregation differs; trained under the same protocol.
     _PRESET = {"V3DE": "default",
@@ -501,11 +425,7 @@ def main():
     elif args.variant == "V3DE_G3_BD":
         from .model_v3_decoder_ac import KSGATv3SymRevTri
         import os as _os
-        # CLOSED-LOOP ABLATION (2026-06-14): allow triple_blend on the BD
-        # (SymRevTri, NO edge-state backbone) variant, to isolate whether the +170K
-        # edge-state edge-state backbone is needed GIVEN triblend, or whether triblend
-        # alone (on plain physics backbone) already reaches the Y8 kf̄.
-        # MECAS_TRIPLE_BLEND=1 / MECAS_BLEND_ROLLOUT=1 / MECAS_BLEND_INIT enable it.
+        # Optional three-stream and rollout fusion for the SymRevTri backbone.
         _bd_triple = _os.environ.get("MECAS_TRIPLE_BLEND", "0") == "1"
         _bd_roll = _os.environ.get("MECAS_BLEND_ROLLOUT", "0") == "1"
         _bd_bi_str = _os.environ.get("MECAS_BLEND_INIT", "2,0,0")
@@ -514,7 +434,7 @@ def main():
             assert len(_bd_bi) == 3
         except Exception:
             _bd_bi = (2.0, 0.0, 0.0)
-        # Plan A: physics-prior free residual on the BD (no-backbone) variant.
+        # Optional analytical-trajectory residual for this variant.
         _bd_free = _os.environ.get("MECAS_FREE_RESIDUAL", "0") == "1"
         if _bd_free:
             assert not (_bd_triple or _bd_roll), \
@@ -537,30 +457,16 @@ def main():
         import os as _os
         _np = (4 if args.profile == PAPER_PROFILE
                else int(_os.environ.get("MECAS_N_PROC", "4")))
-        # Plan 6 (2026-06-12): optional learnable softmin temperature for the
-        # trimodal envelope. MECAS_LEARN_TAU=1 turns on a learnable scalar τ
-        # (softplus-parameterised, init via MECAS_TAU_INIT, default 0.02) so
-        # the d10/d70 seam between Gaussians is differentiable. Adds 1 param.
+        # Optional learnable softmin temperature for the trimodal envelope.
         _learn_tau = (False if args.profile == PAPER_PROFILE
                       else _os.environ.get("MECAS_LEARN_TAU", "0") == "1")
         _tau_init = (0.02 if args.profile == PAPER_PROFILE
                      else float(_os.environ.get("MECAS_TAU_INIT", "0.02")))
-        # Plan 7 (2026-06-12): blend_rollout —run rollout in parallel and
-        # learn per-keyframe α to blend rollout-u_k with the trimodal
-        # parametric u_k. Preserves physics narrative (decoder still emits
-        # (μ,σ,A) triples) and lets the model lean on rollout where the
-        # trimodal envelope is weak (d10/d70 seams, late tail).
-        # Adds K=10 alpha params (negligible). MECAS_BLEND_ROLLOUT=1 enables.
+        # Optional per-keyframe fusion of recurrent rollout and analytical paths.
         _blend_rollout = (False if args.profile == PAPER_PROFILE
                           else _os.environ.get("MECAS_BLEND_ROLLOUT", "0") == "1")
-        # Plan 3 (2026-06-12): triple_blend —adds a 3rd path (direct-readout
-        # head, Linear(d,K)->sigmoid; mirrors the pure-edge-state baseline) and
-        # learns per-keyframe softmax mixing weights across
-        #   { trimodal, rollout, direct }.
-        # Implicitly turns on blend_rollout. Preserves physics interpretability
-        # (trimodal still emits μ,σ,A) but gives the model the unconstrained
-        # flexibility of pure-edge-state as a third option per frame.
-        # MECAS_TRIPLE_BLEND=1 enables.
+        # Optional direct-readout third stream with per-keyframe softmax mixing
+        # over analytical, rollout, and direct predictions.
         _triple_blend = (True if args.profile == PAPER_PROFILE else
                          _os.environ.get("MECAS_TRIPLE_BLEND", "0") == "1")
         # Blend-init sweep knob: initial logits for the triple_blend softmax
@@ -573,30 +479,20 @@ def main():
         except Exception:
             _blend_init = (2.0, 0.0, 0.0)
         print(f"[init] MECAS_BLEND_INIT (physics,rollout,direct) = {_blend_init}")
-        # Plan A (2026-06-14): physics-prior free residual. u = u_phys + Δ_free,
-        # Δ = zero-init Linear(d,K) => boots at exact physics traj (BD) and learns
-        # an unconstrained correction with gradient from step 1. No blend/softmax
-        # => no init-trap. MECAS_FREE_RESIDUAL=1 enables (standalone; exclusive with
-        # triple_blend/blend_rollout/nobm).
+        # Optional zero-initialized residual added to the analytical trajectory.
         _free_residual = (False if args.profile == PAPER_PROFILE else
                           _os.environ.get("MECAS_FREE_RESIDUAL", "0") == "1")
         if _free_residual:
             assert not (_triple_blend or _blend_rollout), \
                 "MECAS_FREE_RESIDUAL is standalone; unset MECAS_TRIPLE_BLEND/MECAS_BLEND_ROLLOUT"
             print("[init] MECAS_FREE_RESIDUAL=1  (u = u_physics + Δ_free, zero-init Δ)")
-        # the residual head entirely; use the pure rollout (decoder_mode=
-        # "rollout") for u_keyframes. This is the apples-to-apples comparison
-        # to pure-edge-state (same encoder depth, no physics decoder bias). Useful
-        # diagnostic: tells us whether the trimodal envelope itself is the
-        # ceiling, vs the edge-state backbone.
-        # NOTE: this is INCOMPATIBLE with blend_rollout / triple_blend because
-        # they all require decoder_mode in {param,param2,param3}. MECAS_NOBM=1
-        # silently overrides the two blend flags.
+        # Rollout-only mode bypasses the analytical decoder and residual head.
+        # It is incompatible with blend_rollout and triple_blend.
         _nobm = (False if args.profile == PAPER_PROFILE else
                  _os.environ.get("MECAS_NOBM", "0") == "1")
 
-        if args.require_y8_exact:
-            y8_checks = {
+        if args.require_compat_exact:
+            compat_checks = {
                 "n_edge_blocks=4": _np == 4,
                 "triple_blend=true": _triple_blend,
                 "standalone_blend_rollout=false": not _blend_rollout,
@@ -610,14 +506,13 @@ def main():
                 "physrecover=false": not cfg.physrecover,
                 "recovery_q=false": not cfg.recovery_q,
             }
-            failed_checks = [name for name, passed in y8_checks.items() if not passed]
+            failed_checks = [name for name, passed in compat_checks.items() if not passed]
             if failed_checks:
-                raise RuntimeError(f"Y8-H exact-profile check failed: {failed_checks}")
+                raise RuntimeError(f"Compatibility-profile check failed: {failed_checks}")
 
         if _nobm:
-            # Pure rollout path on edge-state encoder. The trimodal decoder is not
-            # built; the residual head is bypassed. Result matches the
-            # historical V3DE_NOBM variant but on the edge-state backbone.
+            # Pure rollout path on the edge-state encoder; the trimodal decoder
+            # and residual head are bypassed.
             assert not (_blend_rollout or _triple_blend), \
                 "MECAS_NOBM=1 is exclusive with MECAS_BLEND_ROLLOUT / MECAS_TRIPLE_BLEND"
             def build_v3de():
@@ -653,9 +548,8 @@ def main():
             return KSGATv3Residual(cfg, Fv=Fv, peak_mode="traj",
                                    prewarm_layers=3, decoder_mode="param2",
                                    param2_preset="g3_wide")
-        print(f"[init] variant = V3DE_G3_WIDE  (flagship + mu2 range widened to "
-              f"[0,200] —fixes the d70+ structural blindness of g3_narrow; "
-              f"zero new params)")
+        print(f"[init] variant = V3DE_G3_WIDE  (mu2 range [0,200]; "
+              f"no additional parameters)")
     elif args.variant == "V3DE_NOBM":
         def build_v3de():
             return KSGATv3(cfg, Fv=Fv, peak_mode="traj",
@@ -715,21 +609,22 @@ def main():
         raise ValueError(f"unknown variant: {args.variant}")
     build_v3de.__name__ = f"build_{args.variant.lower()}"
 
-    if args.require_y8_exact:
-        if args.profile != LEGACY_Y8_PROFILE:
+    if args.require_compat_exact:
+        if args.profile != COMPAT_PROFILE:
             raise ValueError(
-                "--require-y8-exact is only valid with --profile legacy-y8"
+                "--require-compat-exact is only valid with --profile compat"
             )
         if args.variant != "MeCaSNet":
-            raise ValueError("--require_y8_exact requires --variant MeCaSNet")
+            raise ValueError("--require-compat-exact requires --variant MeCaSNet")
         profile_model = build_v3de()
         profile_params = sum(parameter.numel() for parameter in profile_model.parameters())
         del profile_model
         if profile_params != 289512:
             raise RuntimeError(
-                f"Y8-H parameter-count check failed: expected 289512, got {profile_params}"
+                "Compatibility-profile parameter-count check failed: "
+                f"expected 289512, got {profile_params}"
             )
-        print("[init] Y8-H EXACT PROFILE PASS  params=289512")
+        print("[init] compatibility profile verified  params=289512")
 
     if args.resume_from:
         print(f"[resume] loading weights from {args.resume_from}")

@@ -96,7 +96,7 @@ mecasnet-train \
   --out-dir runs/chemical/mecasnet
 ```
 
-The `paper` profile fixes the manuscript boundary and architecture: Day-0-only
+The `paper` profile fixes the documented information set and architecture: Day-0-only
 event information, `u(0) = 1 - shock * damage`, four persistent edge-state
 propagation steps, a three-component lower envelope with `c = 6`, learned
 node-specific recovery exponent `q` in `[0.5, 2.0]`, and three-stream fusion.
@@ -104,8 +104,8 @@ node-specific recovery exponent `q` in `[0.5, 2.0]`, and three-stream fusion.
 To train a comparator under the same split and optimization protocol, replace
 `MeCaSNet` with `MLP`, `GCN`, `GAT`, `STGNN`, or `DirGNN`.
 
-The `legacy-y8` profile exists only to load archived pre-final-manuscript
-checkpoints. It should not be presented as the manuscript architecture.
+The `compat` profile provides the fixed `c=2` configuration used by the
+post-training analysis scripts. New studies should use the `paper` profile.
 
 ## Analysis workflows
 
@@ -123,8 +123,7 @@ checkpoints. It should not be presented as the manuscript architecture.
 
 The repair and runtime workflows in Sections 4.8 and 4.9, together with several
 topology-generation steps in Section 4.4, require authorized simulator
-interfaces. Their section READMEs distinguish executable public analyses from
-reference workflows.
+interfaces. Their section READMEs identify the required external dependencies.
 
 Detailed command examples and interpretation limits are in
 [docs/reproducibility.md](docs/reproducibility.md). A section-by-section mapping
@@ -163,13 +162,12 @@ not distributed in this repository. Exact reproduction of the manuscript's
 numerical tables therefore requires an authorized dataset in the documented
 format.
 
-See [OPEN_SOURCE_SCOPE.md](OPEN_SOURCE_SCOPE.md) for the complete release and
-data-governance boundary.
+See [DATA_AND_SOFTWARE_AVAILABILITY.md](DATA_AND_SOFTWARE_AVAILABILITY.md) for
+the data, simulator, and software availability statement.
 
 ## Citation
 
-The bibliographic record is provided in [CITATION.cff](CITATION.cff). Replace
-the provisional journal metadata with the final DOI after publication.
+The bibliographic record is provided in [CITATION.cff](CITATION.cff).
 
 ## License
 

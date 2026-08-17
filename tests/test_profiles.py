@@ -1,5 +1,5 @@
 from mecasnet import Config, apply_profile
-from mecasnet.factory import LEGACY_Y8_PROFILE, PAPER_PROFILE
+from mecasnet.factory import COMPAT_PROFILE, PAPER_PROFILE
 
 
 def test_paper_profile_matches_manuscript_information_boundary() -> None:
@@ -15,9 +15,9 @@ def test_paper_profile_matches_manuscript_information_boundary() -> None:
     assert cfg.p3_g2_repos is False
 
 
-def test_legacy_profile_is_explicitly_separate() -> None:
-    cfg = apply_profile(Config(), LEGACY_Y8_PROFILE)
+def test_compat_profile_is_explicitly_separate() -> None:
+    cfg = apply_profile(Config(), COMPAT_PROFILE)
 
-    assert cfg.profile == LEGACY_Y8_PROFILE
+    assert cfg.profile == COMPAT_PROFILE
     assert cfg.decline_p == 2.0
     assert cfg.recovery_q is False
