@@ -112,19 +112,19 @@ checkpoints. It should not be presented as the manuscript architecture.
 | Manuscript/SI analysis | Entry point |
 |---|---|
 | Cascade-threshold sweep and runtime decomposition | `mecasnet-thresholds` |
-| Matched-seed baseline evaluation | `scripts/evaluation/threshold_multiseed.py` |
-| Input uncertainty | `scripts/evaluation/input_uncertainty.py` |
-| Ensemble and conformal uncertainty | `scripts/evaluation/predictive_uncertainty.py` |
-| Learned recovery parameters | `scripts/evaluation/recovery_parameters.py` |
-| Propagation depth and feedback position | `scripts/evaluation/propagation_depth.py` and `network_propagation.py` |
-| Cross-split event similarity | `scripts/audits/event_split.py` and `event_similarity.py` |
-| Static topology blocks | `scripts/audits/create_topology_blocks.py` |
-| Induced-subgraph evaluation | `scripts/topology/evaluate_subgraph.py` |
+| Matched-seed baseline evaluation | `scripts/experiments/main/section_4_03_overall_performance/threshold_multiseed.py` |
+| Input uncertainty | `scripts/experiments/main/section_4_11_uncertainty/input_uncertainty.py` |
+| Ensemble and conformal uncertainty | `scripts/experiments/main/section_4_11_uncertainty/predictive_uncertainty.py` |
+| Learned recovery parameters | `scripts/experiments/main/section_4_07_trajectory_reconstruction/recovery_parameters.py` |
+| Propagation depth and feedback position | `scripts/experiments/main/section_4_05_propagation_depth/` |
+| Cross-split event similarity | `scripts/experiments/main/section_4_04_split_and_topology/` |
+| Static topology blocks | `scripts/experiments/main/section_4_04_split_and_topology/create_topology_blocks.py` |
+| Induced-subgraph evaluation | `scripts/experiments/main/section_4_04_split_and_topology/evaluate_subgraph.py` |
 
-Scripts under `scripts/reference/` and the topology-generation scripts requiring
-the ARIO/Henriet backend are audit records of the manuscript workflow. They are
-not standalone public reproductions because the simulator backend is not part
-of this release.
+The repair and runtime workflows in Sections 4.8 and 4.9, together with several
+topology-generation steps in Section 4.4, require authorized simulator
+interfaces. Their section READMEs distinguish executable public analyses from
+reference workflows.
 
 Detailed command examples and interpretation limits are in
 [docs/reproducibility.md](docs/reproducibility.md). A section-by-section mapping
@@ -135,10 +135,8 @@ from the manuscript and SI to source files is in
 
 ```text
 src/mecasnet/        Installable model, data, loss, training, and evaluation code
-scripts/evaluation/  Post-training metrics and uncertainty analyses
-scripts/audits/      Split and topology audit utilities
-scripts/topology/    Topology-shift search/evaluation workflows
-scripts/reference/   Workflows requiring non-public simulator interfaces
+scripts/experiments/main/  Workflows aligned with manuscript Sections 4.1–4.11
+scripts/experiments/si/    Code maps and workflows aligned with SI Notes S1–S7
 docs/                Data contract and reproducibility documentation
 tests/               CPU-friendly unit and architecture smoke tests
 ```

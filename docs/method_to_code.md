@@ -144,13 +144,15 @@ predictions and targets meet.
 
 ### S7: robustness and audits
 
-- input reconstruction: `scripts/evaluation/input_uncertainty.py`;
+- input reconstruction:
+  `scripts/experiments/main/section_4_11_uncertainty/input_uncertainty.py`;
 - ensemble/conformal uncertainty: `predictive_uncertainty.py`;
 - propagation distance and feedback position: `propagation_depth.py` and
   `network_propagation.py`;
-- split similarity: `scripts/audits/event_split.py` and `event_similarity.py`;
-- topology blocks and induced subgraphs: `scripts/audits/` and
-  `scripts/topology/`.
+- split similarity and topology shift:
+  `scripts/experiments/main/section_4_04_split_and_topology/`;
+- experiment-to-section navigation: `scripts/experiments/main/README.md` and
+  `scripts/experiments/si/README.md`.
 
 Many of these scripts reproduce archived Y8-H analyses and therefore construct
 `legacy-y8`. This checkpoint lineage is stated explicitly in

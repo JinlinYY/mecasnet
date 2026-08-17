@@ -126,13 +126,13 @@ without adapting the builder.
 Archive-specific entry points include:
 
 - `mecasnet-thresholds` (`mecasnet.evaluation`);
-- `scripts/evaluation/threshold_multiseed.py`;
-- `scripts/evaluation/input_uncertainty.py`;
-- `scripts/evaluation/predictive_uncertainty.py`;
-- `scripts/evaluation/recovery_parameters.py`;
-- `scripts/evaluation/propagation_depth.py`;
-- `scripts/audits/event_similarity.py`;
-- `scripts/topology/evaluate_subgraph.py`.
+- `scripts/experiments/main/section_4_03_overall_performance/threshold_multiseed.py`;
+- `scripts/experiments/main/section_4_11_uncertainty/input_uncertainty.py`;
+- `scripts/experiments/main/section_4_11_uncertainty/predictive_uncertainty.py`;
+- `scripts/experiments/main/section_4_07_trajectory_reconstruction/recovery_parameters.py`;
+- `scripts/experiments/main/section_4_05_propagation_depth/propagation_depth.py`;
+- `scripts/experiments/main/section_4_04_split_and_topology/event_similarity.py`;
+- `scripts/experiments/main/section_4_04_split_and_topology/evaluate_subgraph.py`.
 
 Check the checkpoint `config.profile` and the builder used by a script before
 running it. A strict state-dictionary mismatch is evidence of a profile error,
@@ -170,7 +170,7 @@ The multiseed utility expects checkpoint files named from the model and seed
 under one root directory:
 
 ```bash
-python scripts/evaluation/threshold_multiseed.py \
+python scripts/experiments/main/section_4_03_overall_performance/threshold_multiseed.py \
   --root runs/matched-checkpoints \
   --data-root /path/to/data \
   --output-dir runs/table2-threshold-005 \
@@ -185,7 +185,7 @@ available but the p-value is `null`.
 ## 10. Predictive uncertainty
 
 ```bash
-python scripts/evaluation/predictive_uncertainty.py \
+python scripts/experiments/main/section_4_11_uncertainty/predictive_uncertainty.py \
   --data-root /path/to/data \
   --checkpoints /path/to/seed0.pt /path/to/seed1.pt /path/to/seed2.pt \
                 /path/to/seed3.pt /path/to/seed4.pt \
@@ -208,7 +208,7 @@ the exact calibration population.
 ## 11. Input-reconstruction uncertainty
 
 ```bash
-python scripts/evaluation/input_uncertainty.py \
+python scripts/experiments/main/section_4_11_uncertainty/input_uncertainty.py \
   --data-root /path/to/data \
   --checkpoint /path/to/legacy-y8-seed0.pt \
   --output-dir runs/input-uncertainty \
@@ -231,7 +231,7 @@ model-training uncertainty.
 ## 12. Propagation-depth analysis
 
 ```bash
-python scripts/evaluation/propagation_depth.py \
+python scripts/experiments/main/section_4_05_propagation_depth/propagation_depth.py \
   --data-root /path/to/data \
   --checkpoint /path/to/legacy-y8-seed0.pt \
   --output runs/propagation-depth.json \
@@ -251,7 +251,7 @@ causal transmission mechanism by themselves.
 First generate the split/similarity audit:
 
 ```bash
-python scripts/audits/event_split.py \
+python scripts/experiments/main/section_4_04_split_and_topology/event_split.py \
   --data-root /path/to/data \
   --output-dir runs/event-split-audit \
   --seed 0 --train-frac 0.8 --val-frac 0.1
@@ -260,7 +260,7 @@ python scripts/audits/event_split.py \
 Then evaluate a frozen checkpoint after excluding flagged test events:
 
 ```bash
-python scripts/audits/event_similarity.py \
+python scripts/experiments/main/section_4_04_split_and_topology/event_similarity.py \
   --data-root /path/to/data \
   --checkpoint /path/to/legacy-y8-seed0.pt \
   --audit-csv runs/event-split-audit/event_pair_nearest_neighbors.csv \
@@ -279,7 +279,8 @@ The topology tools fall into two categories:
 2. manuscript reference workflows containing network-specific feature counts,
    simulator interfaces, or archived checkpoint assumptions.
 
-`scripts/topology/evaluate_subgraph.py`, for example, expects the archived
+`scripts/experiments/main/section_4_04_split_and_topology/evaluate_subgraph.py`,
+for example, expects the archived
 feature contract and a re-equilibrated induced-subgraph data directory. It
 should not be pointed at an arbitrary new network without reviewing and adapting
 those checks.

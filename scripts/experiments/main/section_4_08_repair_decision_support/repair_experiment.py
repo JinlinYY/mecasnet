@@ -28,7 +28,14 @@ import torch
 from scipy.sparse.csgraph import dijkstra
 
 
-ROOT = Path(__file__).resolve().parents[2]
+def repository_root() -> Path:
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    raise RuntimeError("Could not locate the repository root")
+
+
+ROOT = repository_root()
 ARCHIVE = ROOT
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))

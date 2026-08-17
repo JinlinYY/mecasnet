@@ -26,8 +26,10 @@
 The release supports inspection and reuse of the method, training protocol, and
 evaluation logic. Exact numerical reproduction of the manuscript requires an
 authorized dataset and the corresponding simulator-generated events. Workflows
-under `scripts/reference/` and simulator-dependent topology generation remain
-reference implementations rather than standalone public reproductions.
+in manuscript Sections 4.8 and 4.9, together with simulator-dependent topology
+generation in Section 4.4, remain reference implementations rather than
+standalone public reproductions. Their locations and dependencies are indexed
+under `scripts/experiments/main/`.
 
 ## Data governance
 
@@ -35,4 +37,3 @@ Do not commit raw or derived files that reveal firm identity, supply relations,
 production, location, or recoverable proxies for those quantities. Before
 publishing any new dataset or checkpoint, complete the relevant permission,
 de-identification, licensing, and ethics review.
-

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,25 @@ from mecasnet.data import (
     collate_single,
     split_event_ids,
 )
+
+
+def repository_root() -> Path:
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    raise RuntimeError("Could not locate the repository root")
+
+
+OVERALL_EXPERIMENT = (
+    repository_root()
+    / "scripts"
+    / "experiments"
+    / "main"
+    / "section_4_03_overall_performance"
+)
+if str(OVERALL_EXPERIMENT) not in sys.path:
+    sys.path.insert(0, str(OVERALL_EXPERIMENT))
+
 from threshold_multiseed import (
     build_model,
     checkpoint_paths,

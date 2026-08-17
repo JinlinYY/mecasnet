@@ -22,8 +22,8 @@ file before running the code.
 
 1. [Evaluation protocol](evaluation_protocol.md)
 2. [Reproducibility guide](reproducibility.md)
-3. The relevant entry point under `scripts/evaluation/`, `scripts/audits/`, or
-   `scripts/topology/`
+3. The relevant article-aligned entry point under `scripts/experiments/main/`
+   or `scripts/experiments/si/`
 
 ### I am reviewing the scientific claims
 

@@ -144,13 +144,13 @@ mecasnet-thresholds \
   --checkpoint /path/to/legacy-y8-checkpoint.pt \
   --output-dir runs/thresholds --device cuda
 
-python scripts/evaluation/predictive_uncertainty.py \
+python scripts/experiments/main/section_4_11_uncertainty/predictive_uncertainty.py \
   --data-root /path/to/data \
   --checkpoints /path/to/legacy-y8-seed0.pt /path/to/legacy-y8-seed1.pt \
                 /path/to/legacy-y8-seed2.pt \
   --output-dir runs/uncertainty --n-val 500 --n-test 500 --alpha 0.10
 
-python scripts/evaluation/propagation_depth.py \
+python scripts/experiments/main/section_4_05_propagation_depth/propagation_depth.py \
   --data-root /path/to/data --checkpoint /path/to/legacy-y8-seed0.pt \
   --output runs/propagation-depth.json --threshold 0.05
 ```

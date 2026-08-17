@@ -224,11 +224,12 @@ Some topology workflows contain manuscript-network checks and are not generic
 data utilities. Review their module docstring and expected feature contract
 before adapting them to another graph.
 
-### `scripts/reference/` cannot import simulator modules
+### Sections 4.8 or 4.9 cannot import simulator modules
 
-The ARIO/Henriet, Inoue-Todo, and FINDER backends are not part of the public
-release. These scripts document the manuscript workflow but require an
-authorized private backend on `PYTHONPATH` and the corresponding assets.
+The repair and runtime scripts are under `scripts/experiments/main/` in their
+article-aligned section folders. The ARIO/Henriet, Inoue-Todo, and FINDER
+backends are not part of the public release. These scripts require an authorized
+private backend on `PYTHONPATH` and the corresponding assets.
 
 ## Getting a useful bug report
 

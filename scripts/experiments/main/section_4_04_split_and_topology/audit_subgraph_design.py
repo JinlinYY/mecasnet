@@ -9,7 +9,14 @@ from typing import Any
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[2]
+def repository_root() -> Path:
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    raise RuntimeError("Could not locate the repository root")
+
+
+ROOT = repository_root()
 CANGZHOU = ROOT / "cangzhou_pipeline"
 for path in (ROOT, CANGZHOU):
     if str(path) not in sys.path:

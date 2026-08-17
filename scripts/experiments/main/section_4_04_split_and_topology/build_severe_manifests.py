@@ -8,7 +8,14 @@ import os
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+def repository_root() -> Path:
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    raise RuntimeError("Could not locate the repository root")
+
+
+ROOT = repository_root()
 CANGZHOU = Path(os.environ.get("CANGZHOU_PIPELINE_ROOT", ROOT / "cangzhou_pipeline"))
 for path in (ROOT, CANGZHOU):
     if str(path) not in sys.path:

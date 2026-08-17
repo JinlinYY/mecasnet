@@ -20,7 +20,14 @@ import torch
 from torch.utils.data import DataLoader
 
 
-ROOT = Path(__file__).resolve().parents[2]
+def repository_root() -> Path:
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    raise RuntimeError("Could not locate the repository root")
+
+
+ROOT = repository_root()
 RELEASE = ROOT
 FIX_DIR = ROOT / "fix"
 for path in (ROOT, RELEASE, FIX_DIR):
