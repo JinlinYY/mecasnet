@@ -10,17 +10,6 @@ supply-relation states, direction-specific supply and demand messages, and
 three complementary trajectory streams: a structured decline–trough–recovery
 decoder, a recurrent rollout, and a direct key-date readout.
 
-## Release status
-
-This repository contains the model, training, evaluation, sensitivity-analysis,
-and audit code. It does **not** contain confidential firm identities, supply
-relations, event files, simulator implementations, trained checkpoints, or
-paper result artifacts. Consequently, external users can inspect and reuse the
-method and evaluation protocol, but cannot reproduce the manuscript's numerical
-tables without an authorized dataset in the documented format.
-
-See [OPEN_SOURCE_SCOPE.md](OPEN_SOURCE_SCOPE.md) for the complete boundary.
-
 ## Method at a glance
 
 1. Represent the operating supply chain as a directed graph with input-share
@@ -147,6 +136,18 @@ tests/               CPU-friendly unit and architecture smoke tests
 - Do not interpret ground-truth trajectory spread as predictive uncertainty.
 - Do not compare surrogate and simulator wall-clock times without reporting
   startup, I/O, warm-up, event count, hardware, and simulator configuration.
+
+## Code and data availability
+
+This repository contains the model, training, evaluation, sensitivity-analysis,
+and audit code. Confidential firm identities, supply relations, event files,
+simulator implementations, trained checkpoints, and paper result artifacts are
+not distributed in this repository. Exact reproduction of the manuscript's
+numerical tables therefore requires an authorized dataset in the documented
+format.
+
+See [OPEN_SOURCE_SCOPE.md](OPEN_SOURCE_SCOPE.md) for the complete release and
+data-governance boundary.
 
 ## Citation
 
