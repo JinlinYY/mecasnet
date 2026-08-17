@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mecasnet"
+version = "0.1.0"
+description = "Mechanism-guided graph learning for supply-chain disruption propagation and recovery prediction"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Jinlin Ye"},
+  {name = "Zirui Shi"},
+  {name = "Kai Li"},
+  {name = "Shuohan Wang"},
+  {name = "Shouhang Yuan"},
+  {name = "Ziyang Zhang"},
+  {name = "Jingde Li"},
+  {name = "Wei Zhang"},
+]
+keywords = [
+  "supply-chain resilience",
+  "graph neural networks",
+  "disruption propagation",
+  "process systems engineering",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "torch>=2.1",
+]
+
+[project.optional-dependencies]
+analysis = ["pandas>=2.0", "matplotlib>=3.7"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+mecasnet-train = "mecasnet.train:main"
+mecasnet-thresholds = "mecasnet.evaluation:main"
+
+[project.urls]
+Repository = "https://github.com/JinlinYY/mecasnet"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

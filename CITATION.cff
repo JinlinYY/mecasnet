@@ -1,0 +1,47 @@
+cff-version: 1.2.0
+message: "If you use MeCaSNet, please cite the associated manuscript."
+title: "MeCaSNet: Mechanism-Guided Graph Learning for Dynamic Disruption Propagation and Recovery Prediction in Process-Industry Supply Chains"
+type: software
+version: 0.1.0
+date-released: 2026-08-17
+repository-code: "https://github.com/JinlinYY/mecasnet"
+license: MIT
+authors:
+  - family-names: Ye
+    given-names: Jinlin
+  - family-names: Shi
+    given-names: Zirui
+  - family-names: Li
+    given-names: Kai
+  - family-names: Wang
+    given-names: Shuohan
+  - family-names: Yuan
+    given-names: Shouhang
+  - family-names: Zhang
+    given-names: Ziyang
+  - family-names: Li
+    given-names: Jingde
+  - family-names: Zhang
+    given-names: Wei
+preferred-citation:
+  type: article
+  title: "Mechanism-Guided Graph Learning for Dynamic Disruption Propagation and Recovery Prediction in Process-Industry Supply Chains"
+  authors:
+    - family-names: Ye
+      given-names: Jinlin
+    - family-names: Shi
+      given-names: Zirui
+    - family-names: Li
+      given-names: Kai
+    - family-names: Wang
+      given-names: Shuohan
+    - family-names: Yuan
+      given-names: Shouhang
+    - family-names: Zhang
+      given-names: Ziyang
+    - family-names: Li
+      given-names: Jingde
+    - family-names: Zhang
+      given-names: Wei
+  journal: "Industrial & Engineering Chemistry Research (submitted)"
+  year: 2026
