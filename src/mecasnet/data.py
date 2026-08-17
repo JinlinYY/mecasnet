@@ -1,8 +1,8 @@
 """Static-network preprocessing and cascade-event dataset.
 
 Each event is evaluated on the directed k-hop neighborhood reachable from the
-directly shocked firms. Nodes outside that event subgraph are restored to their
-business-as-usual production ratio when metrics are assembled.
+directly shocked firms. Nodes outside that event subgraph are omitted from the
+model batch and from the metrics implemented in ``mecasnet.runner``.
 """
 from __future__ import annotations
 import pickle

@@ -118,7 +118,7 @@ class Config:
     #   "full"    - keep all 12 dims (original; possible leakage)
     #   "clean"   - zero out 0,1,5,6,7 (drop hard-leaky per-firm recovery
     #               + drop simulation-artifact mode); keep tier prior + tier_oh
-    #   "minimal" - keep only delta_arr.mean and meta.delta (2 dims)
+    #   "minimal" - keep only mean observed Day-0 damage at index 2
     event_scalars_mode: str = "minimal"
 
     # --- cross-domain augmentation (Phase 2 of LOO generalization plan) ---
@@ -162,4 +162,3 @@ def get_paths(cfg: Config):
         "events": root / cfg.events_dir,
         "out": Path(cfg.out_dir),
     }
-

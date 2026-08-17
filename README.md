@@ -44,6 +44,25 @@ pytest
 For large experiments, a CUDA-capable GPU is recommended. Small smoke tests can
 run on CPU.
 
+## Documentation
+
+Start with the [documentation guide](docs/README.md), which provides separate
+reading paths for first-time users, experiment replication, method review, and
+code maintenance. The main technical references are:
+
+- [Architecture](docs/architecture.md): equations, tensor flow, profile
+  differences, output semantics, and source locations.
+- [Data contract](docs/data_contract.md): required files, array shapes, edge
+  orientation, event semantics, validation, and a minimal example.
+- [Training](docs/training.md): preflight checks, paper-profile settings,
+  command-line options, losses, outputs, checkpoints, and resume behavior.
+- [Evaluation protocol](docs/evaluation_protocol.md): subsets, metric
+  definitions, aggregation rules, uncertainty analyses, and reporting checks.
+- [Reproducibility](docs/reproducibility.md): environment capture, manifests,
+  hashes, seeds, provenance, and publication checklist.
+- [Troubleshooting](docs/troubleshooting.md): installation, data, memory,
+  checkpoint, metric, and analysis-script diagnostics.
+
 ## Data contract
 
 Point `--data-root` to a directory with this layout:
