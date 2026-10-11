@@ -24,3 +24,17 @@ python scripts/experiments/main/section_4_09_efficiency/runtime_benchmark.py \
 The simulator branches require authorized interfaces and protected domain
 assets. Runtime comparisons must report hardware, event count, warm-up,
 precision, and whether startup and I/O are included.
+
+## R3 experiment scripts
+
+Additional scripts from the updated experiment archive:
+
+| Script | Purpose |
+|---|---|
+| [benchmark_henriet_batched_breakeven.py](benchmark_henriet_batched_breakeven.py) | Matched runtime, batched simulation, generation cost and break-even |
+| [benchmark_henriet_matched_workflow.py](benchmark_henriet_matched_workflow.py) | Matched runtime, batched simulation, generation cost and break-even |
+| [calculate_henriet_breakeven.py](calculate_henriet_breakeven.py) | Matched runtime, batched simulation, generation cost and break-even |
+| [measure_henriet_generation_cost.py](measure_henriet_generation_cost.py) | Matched runtime, batched simulation, generation cost and break-even |
+
+These source snapshots retain their original research-environment imports and
+paths. See [R3 import requirements](../../R3_IMPORT.md) before running them.

@@ -50,3 +50,16 @@ python scripts/experiments/main/section_4_04_split_and_topology/evaluate_subgrap
 
 Do not crop full-graph labels to create this input. The reduced-network
 simulator must be rerun so targets are consistent with the modified topology.
+
+## R3 experiment scripts
+
+Additional scripts from the updated experiment archive:
+
+| Script | Purpose |
+|---|---|
+| [neeq_repeated_train.py](neeq_repeated_train.py) | Repeated event splits and NEEQ training |
+| [repeated_split_experiment.py](repeated_split_experiment.py) | Repeated event splits and NEEQ training |
+| [audit_comment14_network_counts.py](audit_comment14_network_counts.py) | Network scope and node/edge count audit |
+
+These source snapshots retain their original research-environment imports and
+paths. See [R3 import requirements](../../R3_IMPORT.md) before running them.

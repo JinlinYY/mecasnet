@@ -190,3 +190,11 @@ configuration is described in
 Construct MeCaSNet through `mecasnet.build_mecasnet` and select an explicit
 named profile. Direct class names are implementation details and are not the
 stable public construction API.
+
+## Updated R3 experiment sources
+
+The additional mechanistic baselines, repeated-split protocols, ablations,
+runtime and break-even benchmarks, network audits, sensitivity and conformal
+evaluations, repair screening, and trough-timing analysis are mapped in the
+[R3 import guide](../scripts/experiments/R3_IMPORT.md). These scripts preserve
+the supplied source and require the original external research environment.

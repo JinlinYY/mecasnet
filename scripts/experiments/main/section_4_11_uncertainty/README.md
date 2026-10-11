@@ -27,3 +27,17 @@ python scripts/experiments/main/section_4_11_uncertainty/predictive_uncertainty.
 The first workflow measures sensitivity to perturbed network/damage inputs.
 The second uses validation events for conformal calibration and test events for
 coverage. Raw ensemble spread is not automatically a calibrated interval.
+
+## R3 experiment scripts
+
+Additional scripts from the updated experiment archive:
+
+| Script | Purpose |
+|---|---|
+| [evaluate_share_ablation_simulator_sensitivity.py](evaluate_share_ablation_simulator_sensitivity.py) | Share and missing-edge sensitivity |
+| [y8_input_uncertainty.py](y8_input_uncertainty.py) | Share and missing-edge sensitivity |
+| [evaluate_recovery_floor_event_conformal.py](evaluate_recovery_floor_event_conformal.py) | Recovery-floor and independent conformal evaluation |
+| [run_independent_conformal.py](run_independent_conformal.py) | Recovery-floor and independent conformal evaluation |
+
+These source snapshots retain their original research-environment imports and
+paths. See [R3 import requirements](../../R3_IMPORT.md) before running them.

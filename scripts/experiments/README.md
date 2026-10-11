@@ -19,3 +19,9 @@ outputs, and any required external datasets or simulator interfaces.
 
 The section READMEs identify required datasets, checkpoint profiles, and
 external simulator interfaces.
+
+## Updated R3 experiments
+
+The 20 scripts from the updated experiment archive are placed in their relevant
+main-manuscript sections. See the [R3 source map and runtime requirements](R3_IMPORT.md)
+for the original folder mapping and external dependencies.

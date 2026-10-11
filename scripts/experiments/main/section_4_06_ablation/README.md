@@ -18,3 +18,16 @@ For a new ablation study:
 
 This convention makes every ablation independently inspectable and prevents a
 generic training variant from being mistaken for a reported experiment.
+
+## R3 experiment scripts
+
+Additional scripts from the updated experiment archive:
+
+| Script | Purpose |
+|---|---|
+| [paper_ablation_train.py](paper_ablation_train.py) | Architecture ablation |
+| [audit_comment12.py](audit_comment12.py) | Regularizer ablation and gradient audit |
+| [train_comment12_ablation.py](train_comment12_ablation.py) | Regularizer ablation and gradient audit |
+
+These source snapshots retain their original research-environment imports and
+paths. See [R3 import requirements](../../R3_IMPORT.md) before running them.

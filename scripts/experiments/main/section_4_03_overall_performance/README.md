@@ -28,3 +28,15 @@ python scripts/experiments/main/section_4_03_overall_performance/threshold_multi
 The post-training script constructs the `compat` profile. For `paper`
 checkpoints, use the metrics in each training summary unless the analysis
 builder has been explicitly configured for that profile.
+
+## R3 experiment scripts
+
+Additional scripts from the updated experiment archive:
+
+| Script | Purpose |
+|---|---|
+| [evaluate_coarse_ario_mechanistic_baseline.py](evaluate_coarse_ario_mechanistic_baseline.py) | Mechanistic baselines |
+| [evaluate_inventory_leontief_mechanistic_baseline.py](evaluate_inventory_leontief_mechanistic_baseline.py) | Mechanistic baselines |
+
+These source snapshots retain their original research-environment imports and
+paths. See [R3 import requirements](../../R3_IMPORT.md) before running them.

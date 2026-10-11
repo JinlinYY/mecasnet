@@ -20,3 +20,14 @@ python scripts/experiments/main/section_4_07_trajectory_reconstruction/recovery_
 Representative trajectory plots can be built from `u_keyframes`. Use the same
 event-specific cascade set for predictions and targets, and do not label
 ground-truth cross-node spread as predictive uncertainty.
+
+## R3 experiment scripts
+
+Additional scripts from the updated experiment archive:
+
+| Script | Purpose |
+|---|---|
+| [evaluate_trough_timing.py](evaluate_trough_timing.py) | Trough-timing evaluation |
+
+These source snapshots retain their original research-environment imports and
+paths. See [R3 import requirements](../../R3_IMPORT.md) before running them.

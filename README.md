@@ -125,6 +125,10 @@ The repair and runtime workflows in Sections 4.8 and 4.9, together with several
 topology-generation steps in Section 4.4, require authorized simulator
 interfaces. Their section READMEs identify the required external dependencies.
 
+The updated R3 experiment scripts are included in the corresponding section
+directories. Their [source map and runtime requirements](scripts/experiments/R3_IMPORT.md)
+document the 20 imported scripts and their original external dependencies.
+
 Detailed command examples and interpretation limits are in
 [docs/reproducibility.md](docs/reproducibility.md). A section-by-section mapping
 from the manuscript and SI to source files is in

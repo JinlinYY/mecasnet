@@ -15,5 +15,7 @@ The directory names follow Section 4 of the manuscript.
 | 4.10 | Cascade-Definition Threshold Sensitivity | [section_4_10_threshold_sensitivity/](section_4_10_threshold_sensitivity/) |
 | 4.11 | Input and Predictive Uncertainty | [section_4_11_uncertainty/](section_4_11_uncertainty/) |
 
-Sections 4.1, 4.2, 4.6, and 4.10 intentionally point to package-level entry
-points where a separate Python file would only duplicate the supported CLI.
+Sections 4.1, 4.2, and 4.10 point to package-level entry points. Section 4.6
+also contains the updated R3 architecture and regularizer ablation scripts.
+See the [R3 source map](../R3_IMPORT.md) for all newly added scripts and their
+original runtime requirements.
