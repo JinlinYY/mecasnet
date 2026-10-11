@@ -84,22 +84,23 @@ R-squared values for nearly constant strata.
 individual date values alongside the mean so poor or undefined dates are not
 hidden.
 
-## 5. Multi-seed aggregation
+## 5. Repeated-partition aggregation
 
 `agg_seeds` computes the arithmetic mean and sample standard deviation
-(`ddof=1`) over finite seed-level metrics. The seed is the unit of replication
-for matched model comparisons. Event nodes must not be treated as independent
+(`ddof=1`) over finite seed-level metrics. The matched repeat is the unit of replication
+for model comparisons. The main study uses ten seed-specific event partitions;
+architecture ablations use three matched partitions. Event nodes must not be treated as independent
 training replicates for a model-level significance test.
 
 For a fair comparator table:
 
-- use identical event IDs for every model and seed;
+- use identical event assignments across models within each repeat;
 - use identical seed labels across models;
 - select each model only on validation data;
 - compare paired seed-level differences;
 - report parameter counts and any capacity-matched variants separately.
 
-## 6. Core evaluation during training
+## 6. Evaluation during training
 
 The training command writes per-seed and aggregate validation/test metrics to
 `<variant>_summary.json`. This is the supported evaluation path for newly
@@ -109,12 +110,17 @@ trained `paper`-profile checkpoints.
 mecasnet-train \
   --profile paper --variant MeCaSNet \
   --data-root /path/to/data \
-  --epochs 60 --seeds 5 --save-ckpt \
+  --split-manifest /path/to/repeat_00.json \
+  --epochs 60 --seeds 1 --seed-start 0 --save-ckpt \
   --out-dir runs/paper
 ```
 
 The best epoch is selected by validation `r2_pk_csc`; test values are evaluated
 only from the selected state.
+
+The example describes one event partition. Repeat with the corresponding
+event assignments and initialization for each study repeat; multiple
+initializations within one call retain a common partition.
 
 ## 7. Compatibility-profile utilities
 
@@ -301,3 +307,19 @@ Every reported metric should identify:
 - all undefined/`NaN` strata;
 - hardware and timing scope for runtime claims;
 - whether the analysis is primary, preregistered, or post-hoc.
+
+## 16. Independent event-level coverage in the current manuscript
+
+Main Table 12 and Supplementary Table S19 use independently generated sets of
+500 calibration events and 500 test events. Neither set contributes to training
+or model selection. Each calibration event contributes the maximum absolute
+residual across prediction nodes for peak loss, and across nodes and key dates
+for trajectory prediction. Peak and trajectory radii are calibrated separately
+at the 90% level.
+
+Coverage requires every predicted node, and every key date for trajectories, to
+be covered within a test event. Confidence intervals resample complete test
+events while retaining the calibrated radii. This event-simultaneous evaluation
+is distinct from the pooled node-level analysis in `predictive_uncertainty.py`.
+See [Section 4.11](../scripts/experiments/main/section_4_11_uncertainty/README.md)
+for the available independent-event procedures and their reproduction requirements.

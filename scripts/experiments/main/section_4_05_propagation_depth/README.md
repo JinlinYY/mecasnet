@@ -1,22 +1,26 @@
-# Section 4.5: propagation depth and network position
+# 4.5 Propagation-Depth and Network-Position Analysis
 
-`propagation_depth.py` analyzes one frozen MeCaSNet checkpoint. The matched-seed
-`network_propagation.py` compares MeCaSNet and DirGNN across downstream-distance
-and feedback-position strata.
+These analyses compare MeCaSNet and DirGNN across structurally distinct
+cascade populations on the 500-event Henriet reference test set.
 
-```bash
-python scripts/experiments/main/section_4_05_propagation_depth/propagation_depth.py \
-  --data-root /path/to/authorized/data \
-  --checkpoint /path/to/compat-seed0.pt \
-  --output runs/main/section_4_5/depth.json \
-  --threshold 0.05 --n-test 500 --device cuda
+Cascade distance is the shortest directed supplier-to-customer path from any
+initially shocked firm. Table 4 compares one-hop, two-hop and at least three-hop
+cascade populations. Nodes must be initially unshocked, downstream reachable
+and have a target peak loss greater than 0.05.
 
-python scripts/experiments/main/section_4_05_propagation_depth/network_propagation.py \
-  --checkpoint-root /path/to/matched-checkpoints \
-  --data-root /path/to/authorized/data \
-  --output runs/main/section_4_5/network-position.json \
-  --threshold 0.05 --n-test 500 --device cuda
-```
+Table 5 compares feed-forward downstream nodes with bidirectionally reachable
+nodes. A bidirectionally reachable node can be reached from a shocked firm and
+can itself reach a shocked firm. These two paths may involve different shocked
+firms; the classification does not require membership in a single cycle with
+the same shock source.
 
-These are descriptive error stratifications. They do not establish a causal
-transmission mechanism by themselves.
+| Analysis code | Scientific role |
+|---|---|
+| [propagation_depth.py](propagation_depth.py) | Prediction errors stratified by downstream distance |
+| [network_propagation.py](network_propagation.py) | Matched-model distance and network-position comparisons |
+| [audit_prediction_scope.py](audit_prediction_scope.py) | Event-firm counts, directed reachability and connected-component classifications |
+
+Report sample counts for each stratum. Paired confidence intervals resample
+complete events, retaining dependence among firms within an event. The
+network-position comparison describes prediction difficulty associated with
+directed reachability; it does not by itself identify a causal feedback effect.

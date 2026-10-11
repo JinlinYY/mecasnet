@@ -1,17 +1,22 @@
-# Supplementary Note S6: training–inference separation
+# Supplementary Note S6: Predictive Information Set and Training-Inference Separation
 
-The predictive input boundary is enforced by:
+Tables S10-S11 distinguish information observed at prediction time from
+quantities available only for supervision or simulator-based evaluation.
 
-- `src/mecasnet/data.py`: constructs the 12-slot masked event descriptor;
-- `src/mecasnet/factory.py`: locks the paper profile to minimal Day-0 inputs;
-- `src/mecasnet/model_v3.py`: forward prediction consumes only graph/static,
-  shock, Day-0 damage, event descriptor, and key-date information;
-- `src/mecasnet/losses.py`: introduces target-derived supervision only after
-  the forward prediction exists.
+Predictive inputs comprise the pre-disruption graph and firm attributes, direct
+shock indicators, observed Day-0 damage, the mean observed direct-shock damage
+and prescribed key dates. Future production trajectories, true peak loss,
+true cascade extent, trough labels and simulator recovery time are not observed
+predictive inputs.
 
-Regression tests are in `tests/test_profiles.py`, `tests/test_data_contract.py`,
-and `tests/test_model_smoke.py`. See `docs/data_contract.md` and
-`docs/method_to_code.md` for the tensor-level audit.
+[Static and event data](../../../../src/mecasnet/data.py) define the model
+observations and targets. [factory.py](../../../../src/mecasnet/factory.py)
+specifies the manuscript model settings. [model_v3.py](../../../../src/mecasnet/model_v3.py)
+defines prediction from the observed information, while
+[losses.py](../../../../src/mecasnet/losses.py) relates predictions to the
+supervised targets during training.
 
-True trajectories, peak labels, reach labels, trough labels, simulator recovery
-parameters, shock mode, and severity tier are not paper-profile inference inputs.
+The distinction matters for uncertainty analysis: future simulator recovery
+time can vary among events with identical Day-0 observations. The corresponding
+conditional-variance experiment is described in
+[Supplementary Note S7](../note_s7_robustness_and_uncertainty/README.md).

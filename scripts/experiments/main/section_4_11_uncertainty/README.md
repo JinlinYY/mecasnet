@@ -1,43 +1,56 @@
-# Section 4.11: input and predictive uncertainty
+# 4.11 Sensitivity to Input Uncertainty and Predictive Uncertainty
 
-The two workflows answer different questions and should not be combined into a
-single interval claim.
+This section separates sensitivity to reconstructed inputs, variability caused
+by unobserved recovery time and predictive coverage on independent events.
 
-## Reconstructed-input sensitivity
+## Reconstructed-input sensitivity: Table 11
 
-```bash
-python scripts/experiments/main/section_4_11_uncertainty/input_uncertainty.py \
-  --data-root /path/to/authorized/data \
-  --checkpoint /path/to/compat-seed0.pt \
-  --output-dir runs/main/section_4_11/input \
-  --n-test 500 --replicates 10 --bootstrap 2000 --device cuda
-```
+A frozen model is evaluated on the same 500 reference events with unchanged
+simulator targets. Input-share and baseline-capacity noise use log-normal scales
+of 0.10, 0.20 and 0.30. Missing-edge rates are 5%, 10% and 20%, with removed
+shares not reallocated. Day-0 damage noise uses Gaussian scales of 0.05, 0.10
+and 0.20, clipped to the physical damage range. Each stochastic condition uses
+ten draws and 2,000 paired event-bootstrap resamples. The joint condition
+combines share and capacity scales of 0.20, 10% edge omission and damage scale
+0.10.
 
-## Ensemble and conformal predictive uncertainty
+[input_uncertainty.py](input_uncertainty.py) contains the main input-perturbation
+analysis. [missing_supplier_sensitivity.py](missing_supplier_sensitivity.py)
+contains complementary edge-omission procedures that retain at least one
+supplier per buyer. Enabling share reallocation redistributes removed share mass
+among retained suppliers. This complementary
+condition differs from the omission setting in Table 11.
 
-```bash
-python scripts/experiments/main/section_4_11_uncertainty/predictive_uncertainty.py \
-  --data-root /path/to/authorized/data \
-  --checkpoints /path/to/seed0.pt /path/to/seed1.pt /path/to/seed2.pt \
-                /path/to/seed3.pt /path/to/seed4.pt \
-  --output-dir runs/main/section_4_11/predictive \
-  --n-val 500 --n-test 500 --alpha 0.10 --device cuda
-```
+[evaluate_share_ablation_simulator_sensitivity.py](evaluate_share_ablation_simulator_sensitivity.py)
+examines input-share structure and simulator-label sensitivity. Uniform model
+inputs with fixed targets, perturbed simulator labels and omitted supplier
+relations address separate comparisons; their results are kept distinct.
 
-The first workflow measures sensitivity to perturbed network/damage inputs.
-The second uses validation events for conformal calibration and test events for
-coverage. Raw ensemble spread is not automatically a calibrated interval.
+## Unobserved recovery-time variability: Supplementary Table S18
 
-## R3 experiment scripts
+[evaluate_recovery_floor_event_conformal.py](evaluate_recovery_floor_event_conformal.py)
+contains repeated-simulation procedures for 100 fixed Day-0 states and 30
+recovery-time draws per state. Recovery time remains unavailable to the model.
+Conditional simulator variance is compared with model MSE, resampling complete
+Day-0 states with all their associated draws.
 
-Additional scripts from the updated experiment archive:
+## Independent event-level coverage: Table 12
 
-| Script | Purpose |
-|---|---|
-| [evaluate_share_ablation_simulator_sensitivity.py](evaluate_share_ablation_simulator_sensitivity.py) | Share and missing-edge sensitivity |
-| [y8_input_uncertainty.py](y8_input_uncertainty.py) | Share and missing-edge sensitivity |
-| [evaluate_recovery_floor_event_conformal.py](evaluate_recovery_floor_event_conformal.py) | Recovery-floor and independent conformal evaluation |
-| [run_independent_conformal.py](run_independent_conformal.py) | Recovery-floor and independent conformal evaluation |
+[run_independent_conformal.py](run_independent_conformal.py) contains the
+independent-event coverage analysis. The trained models remain fixed. A new
+500-event calibration set and a separate 500-event test set are generated
+independently of training and model selection.
 
-These source snapshots retain their original research-environment imports and
-paths. See [R3 import requirements](../../R3_IMPORT.md) before running them.
+Each calibration event contributes one maximum absolute residual across all
+prediction nodes for peak loss, and across all nodes and ten key dates for
+trajectory prediction. Separate 90% intervals are calibrated for the two targets.
+An event is covered only when its complete prediction population is covered.
+Test confidence intervals resample complete events with the calibrated radii
+fixed. Separate target coverage does not imply joint 90% coverage of both targets.
+
+[predictive_uncertainty.py](predictive_uncertainty.py) supplies an additional
+ensemble and validation-calibrated analysis. Its pooled residual calibration
+does not reproduce the independent event-simultaneous criterion of Table 12.
+
+See [Supplementary Note S7](../../si/note_s7_robustness_and_uncertainty/README.md)
+for Tables S16-S19 and the complete uncertainty protocols.

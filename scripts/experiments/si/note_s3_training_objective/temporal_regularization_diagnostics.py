@@ -1,4 +1,4 @@
-"""Selected revision experiment procedures; mixed experiment entry points omitted."""
+"""Recovery-rate, event-context and late-stage trajectory diagnostics."""
 from __future__ import annotations
 
 import argparse

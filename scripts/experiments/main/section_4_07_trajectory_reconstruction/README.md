@@ -1,33 +1,26 @@
-# Section 4.7: damage-trajectory reconstruction
+# 4.7 Damage-Trajectory Reconstruction in the Henriet Chemical Domain
 
-The trajectory predictions are emitted by the normal evaluation path as
-`u_keyframes`. The analytical and fused branches are implemented in
-`src/mecasnet/model_v3.py`; the final late correction is in
-`src/mecasnet/model_v3_residual.py`.
+Figures 4 and 5 examine the temporal evolution and spatial distribution of
+cascade damage. Representative trajectories cover medium, heavy and
+catastrophic disruptions under sector, hub and random shock modes.
 
-`recovery_parameters.py` is a supporting parameter-analysis utility. It
-captures the structured decoder's raw parameter head and reports transformed
-recovery-parameter distributions:
+For each event, both prediction and reference are evaluated over the same
+cascade-node set and the ten prescribed key dates. Mean damage is the arithmetic
+mean of one minus the production ratio. The shaded reference bands in Figure 4
+represent cross-node heterogeneity in simulated damage, rather than predictive
+coverage. Straight segments between key dates serve only to display the sampled
+trajectory.
 
-```bash
-python scripts/experiments/main/section_4_07_trajectory_reconstruction/recovery_parameters.py \
-  --data-root /path/to/authorized/data \
-  --checkpoint /path/to/compat-seed0.pt \
-  --output-dir runs/main/section_4_7/recovery-parameters \
-  --n-test 500 --device cuda
-```
+Figure 5 compares the cascade footprint at Days 20, 30, 100 and 199. Its mean
+damage uses the event-specific cascade-node population. The full-network mean
+shown for the repair examples in Figure 6 uses a different population.
 
-Representative trajectory plots can be built from `u_keyframes`. Use the same
-event-specific cascade set for predictions and targets, and do not label
-ground-truth cross-node spread as predictive uncertainty.
+[recovery_parameters.py](recovery_parameters.py) provides a complementary
+analysis of learned structured-trajectory parameters. Those parameters describe
+one prediction branch; final predictions also incorporate the recurrent and
+direct branches. They are not uniquely identified simulator constants.
 
-## R3 experiment scripts
-
-Additional scripts from the updated experiment archive:
-
-| Script | Purpose |
-|---|---|
-| [evaluate_trough_timing.py](evaluate_trough_timing.py) | Trough-timing evaluation |
-
-These source snapshots retain their original research-environment imports and
-paths. See [R3 import requirements](../../R3_IMPORT.md) before running them.
+The available evaluation code produces key-date predictions. Recreating the
+published figures additionally requires the corresponding event selection,
+network visualization and reference data. Trough-timing accuracy is described
+in [Supplementary Note S3](../../si/note_s3_training_objective/README.md).

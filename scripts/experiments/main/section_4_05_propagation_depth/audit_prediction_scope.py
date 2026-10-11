@@ -1,4 +1,4 @@
-"""Audit saved Tables 4-5 counts without simulation or checkpoint inference."""
+"""Prediction-scope counts for propagation-depth and network-position comparisons."""
 from __future__ import annotations
 
 import argparse

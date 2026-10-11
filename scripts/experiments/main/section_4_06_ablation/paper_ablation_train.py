@@ -1,4 +1,4 @@
-"""Isolated Table 6 ablation profiles and training entry point."""
+"""Matched architecture ablations for the Henriet chemical benchmark."""
 from __future__ import annotations
 
 import json

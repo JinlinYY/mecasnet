@@ -1,4 +1,4 @@
-"""Selected revision experiment procedures; mixed experiment entry points omitted."""
+"""Paired model comparisons across seed-specific disruption-event partitions."""
 from __future__ import annotations
 
 import argparse

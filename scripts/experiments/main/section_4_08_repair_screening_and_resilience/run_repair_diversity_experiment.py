@@ -1,4 +1,4 @@
-"""Selected revision experiment procedures; mixed experiment entry points omitted."""
+"""Repair-set screening across shock-location, severity and budget conditions."""
 from __future__ import annotations
 
 import argparse

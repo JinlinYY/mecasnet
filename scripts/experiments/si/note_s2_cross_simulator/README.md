@@ -1,20 +1,19 @@
-# Supplementary Note S2: cross-simulator evaluation
+# Supplementary Note S2: Cross-Simulator Evaluation on the Inoue-Domain Benchmark
 
-The Chemical and NEEQ models are trained independently. This experiment tests
-whether the architecture can be trained in another domain; it is not direct
-parameter transfer between networks.
+The Inoue-domain NEEQ benchmark examines cascade prediction under a different
+network, sector composition and simulator. Chemical and NEEQ models are trained
+independently; the experiment concerns the applicability of the model structure
+after domain-specific training.
 
-Use the standard training entry point with the authorized NEEQ data root and a
-separate output directory:
+The repeated model comparison uses ten event partitions of 4,000 training,
+500 validation and 500 test events. All comparators share the same event
+assignments within each repeat. The corresponding training and comparison
+procedures are described in [Section 4.3](../../main/section_4_03_overall_performance/README.md).
 
-```bash
-mecasnet-train \
-  --profile paper --variant MeCaSNet \
-  --data-root /path/to/authorized/neeq-data \
-  --epochs 60 --seeds 5 --seed-start 0 --save-ckpt \
-  --out-dir runs/si/s2/neeq-mecasnet
-```
+Figure S2 compares representative predicted and reference damage trajectories
+on the same event-specific cascade-node populations. Reference variation across
+nodes describes heterogeneity of the simulated response. It does not measure
+predictive uncertainty.
 
-Record the actual event counts and split manifest used for the domain. Do not
-reuse a Chemical-domain checkpoint unless the experiment is explicitly defined
-as transfer and feature compatibility has been established.
+The NEEQ data, event characteristics and simulation assumptions are described
+in [Supplementary Note S1](../note_s1_neeq_dataset/README.md).

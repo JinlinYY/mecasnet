@@ -1,4 +1,4 @@
-"""Selected revision experiment procedures; mixed experiment entry points omitted."""
+"""Matched retraining procedures for temporal regularization comparisons."""
 from __future__ import annotations
 
 import argparse
@@ -15,7 +15,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from audit_comment12 import context_from_batch, gradient_report, rate_diagnostics, to_device
+from temporal_regularization_diagnostics import context_from_batch, gradient_report, rate_diagnostics, to_device
 from comment12_common import (
     KEY_DAYS, PROTOCOL, atomic_json, bind_manifest, build_model, data_manifest,
     event_statistics, load_runtime, make_config, make_splits, node_masks,

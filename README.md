@@ -81,7 +81,7 @@ constraints are specified in [docs/data_contract.md](docs/data_contract.md).
 The loader intentionally keeps the model input width fixed while the `paper`
 profile exposes only the manuscript's Day-0 information set.
 
-## Training the manuscript profile
+## Training on an event partition
 
 ```bash
 mecasnet-train \
@@ -92,9 +92,15 @@ mecasnet-train \
   --epochs 60 --warmup-epochs 3 \
   --lr-schedule cosine --min-lr-ratio 0.1 \
   --event-scalars-mode minimal \
-  --seeds 5 --seed-start 0 --save-ckpt \
+  --split-manifest /path/to/repeat_00.json \
+  --seeds 1 --seed-start 0 --save-ckpt \
   --out-dir runs/chemical/mecasnet
 ```
+
+The command above represents one specified event partition. The principal
+comparison repeats training on ten seed-specific partitions; the architecture
+ablation uses three matched partitions. See the [repeated-study procedure](docs/reproducibility.md)
+for the full comparison design.
 
 The `paper` profile fixes the documented information set and architecture: Day-0-only
 event information, `u(0) = 1 - shock * damage`, four persistent edge-state
@@ -107,39 +113,43 @@ To train a comparator under the same split and optimization protocol, replace
 The `compat` profile provides the fixed `c=2` configuration used by the
 post-training analysis scripts. New studies should use the `paper` profile.
 
-## Analysis workflows
+## Experimental studies
 
-| Manuscript/SI analysis | Entry point |
-|---|---|
-| Cascade-threshold sweep and runtime decomposition | `mecasnet-thresholds` |
-| Matched-seed baseline evaluation | `scripts/experiments/main/section_4_03_overall_performance/threshold_multiseed.py` |
-| Input uncertainty | `scripts/experiments/main/section_4_11_uncertainty/input_uncertainty.py` |
-| Ensemble and conformal uncertainty | `scripts/experiments/main/section_4_11_uncertainty/predictive_uncertainty.py` |
-| Learned recovery parameters | `scripts/experiments/main/section_4_07_trajectory_reconstruction/recovery_parameters.py` |
-| Propagation depth and feedback position | `scripts/experiments/main/section_4_05_propagation_depth/` |
-| Cross-split event similarity | `scripts/experiments/main/section_4_04_split_and_topology/` |
-| Static topology blocks | `scripts/experiments/main/section_4_04_split_and_topology/create_topology_blocks.py` |
-| Induced-subgraph evaluation | `scripts/experiments/main/section_4_04_split_and_topology/evaluate_subgraph.py` |
+The [experimental guide](scripts/experiments/README.md) follows the current
+manuscript and Supplementary Information. Each study describes its scientific
+question, comparison conditions, evaluation population and available analyses.
 
-The repair and runtime workflows in Sections 4.8 and 4.9, together with several
-topology-generation steps in Section 4.4, require authorized simulator
-interfaces. Their section READMEs identify the required external dependencies.
+| Study | Manuscript location | Further details |
+|---|---|---|
+| Metrics and common training conditions | Sections 4.1-4.2 | [Definitions and study design](scripts/experiments/main/README.md) |
+| Repeated model comparison | Section 4.3; Table 2 | [Overall cascade prediction](scripts/experiments/main/section_4_03_overall_performance/README.md) |
+| Event similarity and topology perturbation | Section 4.4; Table 3 | [Robustness evaluation](scripts/experiments/main/section_4_04_split_and_topology/README.md) |
+| Propagation depth and network position | Section 4.5; Tables 4-5 | [Structural comparison](scripts/experiments/main/section_4_05_propagation_depth/README.md) |
+| Architecture ablation | Section 4.6; Table 6 | [Matched component comparisons](scripts/experiments/main/section_4_06_ablation/README.md) |
+| Trajectory and spatial damage reconstruction | Section 4.7; Figures 4-5 | [Temporal and spatial analysis](scripts/experiments/main/section_4_07_trajectory_reconstruction/README.md) |
+| Repair-set screening | Section 4.8; Figure 6 | [Screening and resilience](scripts/experiments/main/section_4_08_repair_screening_and_resilience/README.md) |
+| Accuracy-cost comparisons and cost amortization | Section 4.9; Tables 7-9 | [Computational study](scripts/experiments/main/section_4_09_efficiency/README.md) |
+| Cascade-threshold sensitivity | Section 4.10; Table 10 | [Threshold analysis](scripts/experiments/main/section_4_10_threshold_sensitivity/README.md) |
+| Input sensitivity and independent event-level coverage | Section 4.11; Tables 11-12 | [Sensitivity and predictive uncertainty](scripts/experiments/main/section_4_11_uncertainty/README.md) |
 
-The updated R3 experiment scripts are included in the corresponding section
-directories. Their [source map and runtime requirements](scripts/experiments/R3_IMPORT.md)
-document the 20 imported scripts and their original external dependencies.
+[Supplementary Notes S1-S9](scripts/experiments/si/README.md) describe the dataset,
+objective, comparator definitions, decoder rationale, predictive information,
+robustness, computational comparisons and repair evaluation. Temporal
+regularization and trough-timing diagnostics are presented in Note S3;
+computational cost and repair-set evaluation are presented in Notes S8 and S9.
 
-Detailed command examples and interpretation limits are in
-[docs/reproducibility.md](docs/reproducibility.md). A section-by-section mapping
-from the manuscript and SI to source files is in
-[docs/method_to_code.md](docs/method_to_code.md).
+The [experimental reproduction guide](scripts/experiments/REPRODUCTION.md)
+describes the required data, simulator-dependent calculations and companion
+research procedures. The code supports examination and reuse of the available
+methods; numerical reproduction additionally requires the corresponding
+research data and simulation environment.
 
 ## Repository layout
 
 ```text
-src/mecasnet/        Installable model, data, loss, training, and evaluation code
-scripts/experiments/main/  Workflows aligned with manuscript Sections 4.1–4.11
-scripts/experiments/si/    Code maps and workflows aligned with SI Notes S1–S7
+src/mecasnet/        Model, data, loss, training and evaluation calculations
+scripts/experiments/main/  Studies corresponding to manuscript Sections 4.1-4.11
+scripts/experiments/si/    Studies corresponding to Supplementary Notes S1-S9
 docs/                Data contract and reproducibility documentation
 tests/               CPU-friendly unit and architecture smoke tests
 ```

@@ -1,42 +1,30 @@
-# Section 4.3: overall cascade prediction performance
+# 4.3 Overall Cascade Prediction Performance
 
-Train MeCaSNet and every comparator with `mecasnet-train`; use identical event
-IDs, seed labels, optimization budgets, and validation selection rules.
+This experiment compares MeCaSNet with MLP, GCN, GAT, STGNN and DirGNN on the
+Chemical and NEEQ benchmarks. Table 2 summarizes ten repeated event partitions
+for each benchmark. Every repeat uses 4,000 training, 500 validation and 500
+test events, with identical assignments across models.
 
-Example full-model run:
+Models are selected using validation performance. Cascade peak-loss MAE,
+cascade peak-loss R-squared and cascade trajectory R-squared are then evaluated
+on the test events. The mean and sample standard deviation across repeats
+reflect both event-partition variation and training randomness. Chemical-domain
+comparisons with DirGNN use paired two-sided t-tests across the same ten repeats.
 
-```bash
-mecasnet-train \
-  --profile paper --variant MeCaSNet \
-  --data-root /path/to/authorized/data \
-  --n-train 4000 --n-val 500 --n-test 500 \
-  --epochs 60 --seeds 5 --seed-start 0 --save-ckpt \
-  --out-dir runs/main/section_4_3/mecasnet
-```
-
-`threshold_multiseed.py` re-evaluates a matched set of completed checkpoints at
-one cascade threshold and computes paired model comparisons:
-
-```bash
-python scripts/experiments/main/section_4_03_overall_performance/threshold_multiseed.py \
-  --root /path/to/matched-checkpoints \
-  --data-root /path/to/authorized/data \
-  --output-dir runs/main/section_4_3/table \
-  --threshold 0.05 --n-test 500 --device cuda
-```
-
-The post-training script constructs the `compat` profile. For `paper`
-checkpoints, use the metrics in each training summary unless the analysis
-builder has been explicitly configured for that profile.
-
-## R3 experiment scripts
-
-Additional scripts from the updated experiment archive:
-
-| Script | Purpose |
+| Analysis code | Scientific role |
 |---|---|
-| [evaluate_coarse_ario_mechanistic_baseline.py](evaluate_coarse_ario_mechanistic_baseline.py) | Mechanistic baselines |
-| [evaluate_inventory_leontief_mechanistic_baseline.py](evaluate_inventory_leontief_mechanistic_baseline.py) | Mechanistic baselines |
+| [repeated_split_experiment.py](repeated_split_experiment.py) | Seed-specific event partitions and matched model comparisons |
+| [neeq_repeated_train.py](neeq_repeated_train.py) | Repeated-partition training procedures for the NEEQ benchmark |
+| [threshold_multiseed.py](threshold_multiseed.py) | Matched-checkpoint evaluation at a common cascade threshold |
+| [Model training](../../../../src/mecasnet/train.py) | Training and validation-based model selection |
 
-These source snapshots retain their original research-environment imports and
-paths. See [R3 import requirements](../../R3_IMPORT.md) before running them.
+The repeated-partition files include research procedures used with the original
+training environment. The matched-checkpoint evaluator uses the documented
+`compat` model settings. New `paper` model results are evaluated with their own
+training-time model definition and event assignments. Checkpoint settings and
+evaluation populations must agree before results are compared.
+
+Comparator inputs, capacities and supervision are discussed in
+[Supplementary Note S4](../../si/note_s4_baseline_protocol/README.md).
+Data and software requirements appear in the
+[reproduction guide](../../REPRODUCTION.md).

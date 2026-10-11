@@ -1,33 +1,32 @@
-# Section 4.6: ablation study
+# 4.6 Ablation Study
 
-The ablation implementation is distributed across the named model variants in
-`src/mecasnet/train.py`, the profile controls in `src/mecasnet/factory.py`, and
-the architecture flags consumed by `src/mecasnet/model_v3.py`.
+Table 6 examines propagation, output branches and auxiliary supervision on the
+Henriet chemical benchmark. The full model and all variants are trained on
+three matched event partitions, each containing 4,000 training, 500 validation
+and 500 test events. Results are summarized as mean and sample standard
+deviation across the three repeats.
 
-Each ablation is defined by a named model variant together with its effective
-configuration. The `paper` profile resets architecture overrides to the article
-definition, so an ablation command must specify its changed factor explicitly.
-
-For a new ablation study:
-
-1. copy the full-model command from Section 4.3;
-2. change exactly one named variant or configuration factor;
-3. keep event IDs, five seeds, optimizer, epochs, and selection metric fixed;
-4. store the effective configuration and parameter count with the result;
-5. report the variant name, changed factor, seed set, and parameter count.
-
-This convention makes every ablation independently inspectable and prevents a
-generic training variant from being mistaken for a reported experiment.
-
-## R3 experiment scripts
-
-Additional scripts from the updated experiment archive:
-
-| Script | Purpose |
+| Variant | Scientific comparison |
 |---|---|
-| [paper_ablation_train.py](paper_ablation_train.py) | Architecture ablation |
-| [audit_comment12.py](audit_comment12.py) | Regularizer ablation and gradient audit |
-| [train_comment12_ablation.py](train_comment12_ablation.py) | Regularizer ablation and gradient audit |
+| Full MeCaSNet | Reference model for this ablation study |
+| Decoder-only output | Remove recurrent/direct output fusion |
+| Direct rollout output | Remove the structured trajectory decoder |
+| Regression-only training | Remove cascade-boundary auxiliary supervision |
+| Unconditioned propagation | Remove Day-0 shock conditioning from the encoder |
+| Forward-only propagation | Remove reverse demand-feedback messages |
+| Gaussian decline front | Change the decline exponent from 6 to 2 |
+| Single-exponential recovery | Set the recovery exponent to 1 |
+| Plain GAT | Replace the supply-relation-state propagation backbone |
 
-These source snapshots retain their original research-environment imports and
-paths. See [R3 import requirements](../../R3_IMPORT.md) before running them.
+[paper_ablation_train.py](paper_ablation_train.py) defines the study variants
+and their training procedures in the original research environment. Full-model
+comparisons use the reference trained on these same three partitions, rather
+than the ten-repeat average in Table 2.
+
+Peak-loss and trajectory metrics are reported separately because output-branch
+changes can affect the two tasks differently. The Plain GAT comparison evaluates
+the combined propagation design, whereas the other comparisons target the
+listed component or setting.
+
+Temporal-regularization comparisons and trough-timing evaluation belong to
+[Supplementary Note S3](../../si/note_s3_training_objective/README.md).

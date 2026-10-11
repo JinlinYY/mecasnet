@@ -1,4 +1,4 @@
-"""Selected revision experiment procedures; mixed experiment entry points omitted."""
+"""Surrogate-based repair selection with mechanistic outcome verification."""
 from __future__ import annotations
 
 import argparse

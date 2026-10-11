@@ -1,4 +1,4 @@
-"""Selected revision experiment procedures; mixed experiment entry points omitted."""
+"""Event-level predictive coverage on independent calibration and test events."""
 from __future__ import annotations
 
 import argparse

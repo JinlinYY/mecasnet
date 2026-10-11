@@ -1,4 +1,4 @@
-"""Selected revision experiment procedures; mixed experiment entry points omitted."""
+"""Conditional prediction-error variation under unobserved recovery time."""
 from __future__ import annotations
 
 import argparse

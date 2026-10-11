@@ -1,4 +1,4 @@
-"""Selected revision experiment procedures; mixed experiment entry points omitted."""
+"""Computational cost of generating Henriet cascade-training events."""
 from __future__ import annotations
 
 import argparse

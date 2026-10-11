@@ -1,4 +1,4 @@
-"""Selected revision experiment procedures; mixed experiment entry points omitted."""
+"""Computational amortization for repeated cascade prediction and repair screening."""
 from __future__ import annotations
 
 import argparse

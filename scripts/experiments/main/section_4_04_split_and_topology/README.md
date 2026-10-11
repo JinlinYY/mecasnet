@@ -1,65 +1,37 @@
-# Section 4.4: event-split and topology-shift robustness
+# 4.4 Event-Split Robustness and Topology-Shift Evaluation
 
-This directory also implements Supplementary Note S7. It contains three related
-but distinct stages.
+Two complementary analyses examine whether cascade prediction is sensitive to
+similar disruption configurations or changes in the operating supply network.
+The event-similarity analysis retains its reference partition and frozen model.
+The topology study evaluates newly simulated events on reduced networks.
 
-## Event-similarity audit
+## Cross-split event similarity
 
-```bash
-python scripts/experiments/main/section_4_04_split_and_topology/event_split.py \
-  --data-root /path/to/authorized/data \
-  --output-dir runs/main/section_4_4/event-split
+[event_split.py](event_split.py) characterizes exact and near-duplicate events
+using directly shocked-firm sets and disruption characteristics.
+[event_similarity.py](event_similarity.py) evaluates the same frozen model after
+excluding increasingly similar test events. Report the retained event counts
+and cascade metrics for each exclusion criterion.
 
-python scripts/experiments/main/section_4_04_split_and_topology/event_similarity.py \
-  --data-root /path/to/authorized/data \
-  --checkpoint /path/to/compat-seed0.pt \
-  --audit-csv runs/main/section_4_4/event-split/event_pair_nearest_neighbors.csv \
-  --output-dir runs/main/section_4_4/similarity-sensitivity
-```
+## Subgraph topology perturbation
 
-`event_split.py` uses metadata and labels only to audit similarity; it does not
-change model weights. `event_similarity.py` performs a post-hoc frozen-checkpoint
-sensitivity analysis.
+Connected node blocks are selected using pre-disruption topology, production and
+supply-flow information. After removing a block, network attributes and the
+operating equilibrium are recomputed. Each modified network generates 1,000
+new disruption events. The original full-network MeCaSNet and DirGNN models are
+then evaluated without additional training. Table 3 reports three moderate
+perturbations; stronger perturbations are described in Supplementary Note S7.
 
-## Static topology design
-
-| Script | Role |
+| Analysis code | Scientific role |
 |---|---|
-| `create_topology_blocks.py` | Search connected blocks from exported static metadata |
-| `audit_topology_blocks.py` | Fail-fast audit of generated block-constrained event pools |
-| `search_induced_subgraphs.py` | Search matched connected removal blocks |
-| `sweep_subgraph_deletion.py` | Map the feasible removal-size envelope |
-| `build_severe_manifests.py` | Rebuild selected severe removal witnesses |
-| `audit_subgraph_design.py` | Audit retained topology and comparability constraints |
+| [create_topology_blocks.py](create_topology_blocks.py), [audit_topology_blocks.py](audit_topology_blocks.py) | Connected-block selection and comparison of retained network structure |
+| [search_induced_subgraphs.py](search_induced_subgraphs.py), [sweep_subgraph_deletion.py](sweep_subgraph_deletion.py) | Examination of connected-block removal conditions |
+| [build_severe_manifests.py](build_severe_manifests.py), [audit_subgraph_design.py](audit_subgraph_design.py) | Stronger topology perturbations and structural-preservation statistics |
+| [evaluate_subgraph.py](evaluate_subgraph.py) | Frozen-model evaluation on newly simulated reduced-network events |
 
-The latter four scripts retain manuscript-specific Henriet network-builder
-interfaces. They document the selection procedure but require the authorized
-backend to execute.
+The reduced-network labels must come from new simulations on the modified graph.
+The experiment concerns changes within the original network domain; it does not
+establish transfer to an entirely unseen industrial network.
 
-## Frozen evaluation on regenerated subgraphs
-
-After the simulator has regenerated events on a re-equilibrated reduced graph:
-
-```bash
-python scripts/experiments/main/section_4_04_split_and_topology/evaluate_subgraph.py \
-  --data-root /path/to/regenerated/subgraph-data \
-  --checkpoint /path/to/full-graph-checkpoint.pt \
-  --model mecasnet \
-  --output runs/main/section_4_4/subgraph-b1-mecasnet.json
-```
-
-Do not crop full-graph labels to create this input. The reduced-network
-simulator must be rerun so targets are consistent with the modified topology.
-
-## R3 experiment scripts
-
-Additional scripts from the updated experiment archive:
-
-| Script | Purpose |
-|---|---|
-| [neeq_repeated_train.py](neeq_repeated_train.py) | Repeated event splits and NEEQ training |
-| [repeated_split_experiment.py](repeated_split_experiment.py) | Repeated event splits and NEEQ training |
-| [audit_comment14_network_counts.py](audit_comment14_network_counts.py) | Network scope and node/edge count audit |
-
-These source snapshots retain their original research-environment imports and
-paths. See [R3 import requirements](../../R3_IMPORT.md) before running them.
+See [Supplementary Note S7](../../si/note_s7_robustness_and_uncertainty/README.md)
+for Tables S12-S15 and the relationship to the other robustness studies.

@@ -1,27 +1,31 @@
-# Article-aligned experiments
+# Experimental studies
 
-This tree maps code to the experimental structure of the manuscript and
-Supplementary Information (SI):
+The experiments examine cascade prediction in the Henriet chemical supply-chain
+benchmark and the Inoue-domain NEEQ benchmark. They follow Sections 4.1-4.11 of
+the main manuscript and Supplementary Notes S1-S9.
 
-- [main/](main/README.md): main-manuscript Sections 4.1–4.11;
-- [si/](si/README.md): Supplementary Notes S1–S7.
+- [Main manuscript](main/README.md): prediction accuracy, robustness, propagation
+  structure, ablation, trajectory reconstruction, repair screening, computational
+  cost, threshold sensitivity and uncertainty.
+- [Supplementary Information](si/README.md): dataset construction, model and
+  comparator definitions, temporal diagnostics, robustness and coverage,
+  computational comparisons and repair-set evaluation.
+- [Reproduction of the experiments](REPRODUCTION.md): data requirements,
+  repeated-partition design and availability of the research procedures.
 
-Each section README identifies its implementation entry points, expected
-outputs, and any required external datasets or simulator interfaces.
+The principal model comparison uses ten seed-specific event partitions, each
+containing 4,000 training, 500 validation and 500 test events. All models share
+the same partition within a repeat. The architecture ablation uses three matched
+partitions. Frozen-model diagnostics use the reference event sets specified in
+their respective sections; their sample counts are not pooled with the repeated
+model comparison.
 
-## Execution conventions
+The primary cascade population consists of initially unshocked prediction nodes
+whose target peak production loss exceeds 0.05. Peak targets are obtained from
+the full daily simulation; predicted trajectories are evaluated at Days 0, 5,
+10, 20, 30, 50, 70, 100, 150 and 199.
 
-1. Run commands from the repository root.
-2. Install with `python -m pip install -e ".[dev,analysis]"`.
-3. Use `--profile paper` for new manuscript-profile training.
-4. Use `compat` only for checkpoints that require the analysis configuration.
-5. Store data outside the repository and outputs under `runs/`.
-
-The section READMEs identify required datasets, checkpoint profiles, and
-external simulator interfaces.
-
-## Updated R3 experiments
-
-The 20 scripts from the updated experiment archive are placed in their relevant
-main-manuscript sections. See the [R3 source map and runtime requirements](R3_IMPORT.md)
-for the original folder mapping and external dependencies.
+The standard event split evaluates new disruption scenarios on a known supply
+network. The Chemical and NEEQ models are trained separately. Topology
+perturbation, input sensitivity and predictive coverage address distinct
+scientific questions and are reported separately.

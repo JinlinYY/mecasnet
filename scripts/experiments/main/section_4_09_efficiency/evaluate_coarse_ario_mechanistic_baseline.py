@@ -1,4 +1,4 @@
-"""Compare a cheap coarse-time-step ARIO baseline with frozen Y8-H predictions."""
+"""Accuracy and computational cost of coarse-step ARIO cascade approximations."""
 from __future__ import annotations
 
 import argparse

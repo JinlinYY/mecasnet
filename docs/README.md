@@ -22,8 +22,8 @@ file before running the code.
 
 1. [Evaluation protocol](evaluation_protocol.md)
 2. [Reproducibility guide](reproducibility.md)
-3. The relevant article-aligned entry point under `scripts/experiments/main/`
-   or `scripts/experiments/si/`
+3. [Main-manuscript studies](../scripts/experiments/main/README.md), Sections 4.1-4.11
+4. [Supplementary studies](../scripts/experiments/si/README.md), Notes S1-S9
 
 ### I am reviewing the scientific claims
 
@@ -40,7 +40,7 @@ file before running the code.
 | [data_contract.md](data_contract.md) | On-disk schemas, edge orientation, derived features, event subgraphs, validation, and a minimal example |
 | [training.md](training.md) | Installation, paper profile, CLI options, split manifests, baselines, checkpoints, and output files |
 | [evaluation_protocol.md](evaluation_protocol.md) | Metric definitions, cascade subset, threshold roles, uncertainty analyses, and topology audits |
-| [reproducibility.md](reproducibility.md) | Exact run protocol, provenance checklist, result interpretation, and claim boundaries |
+| [reproducibility.md](reproducibility.md) | Repeated-partition study design, scientific records and interpretation |
 | [method_to_code.md](method_to_code.md) | Section-level mapping from the manuscript and SI to implementation symbols |
 | [troubleshooting.md](troubleshooting.md) | Common environment, data, checkpoint, CUDA, and metric problems |
 

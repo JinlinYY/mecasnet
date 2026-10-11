@@ -1,5 +1,11 @@
 # Training guide
 
+The current experimental study uses ten seed-specific event partitions for the
+main model comparison and three matched partitions for architecture ablations.
+Examples with several `--seeds` describe initialization repeats on one partition.
+For independent event partitions, use the [repeated-study procedure](reproducibility.md)
+and supply the corresponding `--split-manifest` for each repeat.
+
 This guide covers installation, the paper training profile, deterministic data
 splits, comparator models, checkpoints, and generated files. The commands assume
 the repository root as the current directory.

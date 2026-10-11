@@ -1,4 +1,4 @@
-"""Selected revision experiment procedures; mixed experiment entry points omitted."""
+"""Missing-supplier sensitivity with preserved buyer input-share mass."""
 from __future__ import annotations
 
 import argparse

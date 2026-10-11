@@ -93,9 +93,12 @@ change the deterministic Day-0 boundary.
 
 ### Experiments
 
-`mecasnet.train` implements the fixed event split, matched optimization budget,
-validation-based checkpoint selection, multi-seed aggregation, and cascade
-metrics. Baselines use the same event inputs and supervision; the graph-free MLP
+`mecasnet.train` applies a supplied event partition, common optimization
+conditions, validation-based model selection and cascade metrics. The main
+comparison uses ten seed-specific partitions; architecture ablations use three
+matched partitions. The repeated-partition procedures are in
+[Section 4.3](../scripts/experiments/main/section_4_03_overall_performance/README.md).
+Baselines use the same event inputs and supervision; the graph-free MLP
 intentionally omits topology and edge shares.
 
 The default split is event-disjoint but graph-transductive. The optional strict
@@ -120,6 +123,9 @@ trajectory/peak fitting, focal node weighting, recovery and late monotonicity,
 reachability, and trough timing. `runner.py::train_with_val` implements AdamW,
 warm-up/cosine scheduling, epoch-level validation, and best-state selection.
 
+The additional [temporal diagnostics](../scripts/experiments/si/note_s3_training_objective/README.md)
+cover regularization and trough-timing evaluation in Tables S3-S6.
+
 ### S4: comparators
 
 `train.py` constructs all comparators under one data/split/selection loop.
@@ -142,21 +148,30 @@ descriptor. The forward signature does not consume true trajectories, peak
 labels, reach labels, or trough labels. `total_loss` is the first place where
 predictions and targets meet.
 
-### S7: robustness and audits
+### S7: robustness and predictive uncertainty
 
-- input reconstruction:
-  `scripts/experiments/main/section_4_11_uncertainty/input_uncertainty.py`;
-- ensemble/conformal uncertainty: `predictive_uncertainty.py`;
-- propagation distance and feedback position: `propagation_depth.py` and
-  `network_propagation.py`;
-- split similarity and topology shift:
-  `scripts/experiments/main/section_4_04_split_and_topology/`;
-- experiment-to-section navigation: `scripts/experiments/main/README.md` and
-  `scripts/experiments/si/README.md`.
+Event similarity and subgraph perturbation are described in
+[Section 4.4](../scripts/experiments/main/section_4_04_split_and_topology/README.md).
+Input-share structure, missing suppliers, unobserved recovery time and independent
+event-level coverage are described in
+[Section 4.11](../scripts/experiments/main/section_4_11_uncertainty/README.md).
+The [S7 guide](../scripts/experiments/si/note_s7_robustness_and_uncertainty/README.md)
+relates these procedures to Tables S12-S19. The pooled node-level ensemble analysis
+and independent event-simultaneous coverage have different calibration units.
 
-Some of these scripts construct the `compat` profile. The required checkpoint
-configuration is described in
-[evaluation_protocol.md](evaluation_protocol.md#7-compatibility-profile-utilities).
+### S8: computational benchmark and break-even analysis
+
+The [S8 guide](../scripts/experiments/si/note_s8_computational_benchmark/README.md)
+relates parameter and training cost, low-cost mechanistic approximations, batched
+simulation, cost amortization and complete repair-task timing to Tables S20-S23.
+The corresponding calculations are grouped under main-manuscript Section 4.9.
+
+### S9: repair-screening evaluation
+
+The [S9 guide](../scripts/experiments/si/note_s9_repair_screening/README.md)
+distinguishes the simulator-driven reference, diverse surrogate-screening
+conditions and exhaustive small-set comparison in Tables S24-S26. The
+corresponding procedures are grouped under main-manuscript Section 4.8.
 
 ## Training-only versus inference-time quantities
 
@@ -191,10 +206,9 @@ Construct MeCaSNet through `mecasnet.build_mecasnet` and select an explicit
 named profile. Direct class names are implementation details and are not the
 stable public construction API.
 
-## Updated R3 experiment sources
+## Experimental section guide
 
-The additional mechanistic baselines, repeated-split protocols, ablations,
-runtime and break-even benchmarks, network audits, sensitivity and conformal
-evaluations, repair screening, and trough-timing analysis are mapped in the
-[R3 import guide](../scripts/experiments/R3_IMPORT.md). These scripts preserve
-the supplied source and require the original external research environment.
+The [main-manuscript guide](../scripts/experiments/main/README.md) follows
+Sections 4.1-4.11, and the [Supplementary Information guide](../scripts/experiments/si/README.md)
+follows Notes S1-S9. Each guide relates the scientific comparison to the available
+analyses, evaluation conditions and reported tables or figures.
